@@ -1,0 +1,4 @@
+id,consultant_id,valor_proposta,percentual_tps,valor_total_comissao,nome_cliente,cpf_cliente,bko,status,valor_total_pago,valor_pendente,created_at,finalizacao,redmine_id,proposal_date
+1,35,14629.64,30.00,4388.89,CLIENTE UM,07610793515,JUCELIA BARBOSA,FINALIZADA,4388.89,0.00,2026-03-10 10:19:34,,6731,2026-03-10
+2,35,10000.00,10.00,1000.00,CLIENTE DOIS,11144477735,NAO EXISTE,ABERTA,0.00,1000.00,2026-03-11 10:00:00,,6732,2026-03-11
+3,35,5000.00,10.00,400.00,CLIENTE TRES,39053344705,,PENDENTE,200.00,300.00,2026-03-12 10:00:00,,6733,2026-03-12

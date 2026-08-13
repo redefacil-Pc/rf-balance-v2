@@ -1,0 +1,55 @@
+# segredos — nunca versionar
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# Node
+node_modules/
+dist/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# gerado
+packages/api-client/src/generated/
+openapi.json
+
+# artefatos locais
+*.log
+*.sqlite
+/tmp/
+playwright-report/
+test-results/
+
+# dados — nenhum dump ou PII real no repositório
+# `data/legado` é onde a extração do v1 é colocada para o importador em dry-run
+/data/
+*.sql
+*.dump
+*.csv
+*.xlsx
+!docs/**/*.csv
+# fixtures do importador: sintéticas, versionadas de propósito
+!apps/api/tests/fixtures/**/*.csv
+
+# SO / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json.example

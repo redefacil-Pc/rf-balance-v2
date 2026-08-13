@@ -1,0 +1,2 @@
+id,cpf,nome,vendedor,valor_operacao,valor_comissionavel,data_pag,consultant_id,is_active,tps_percentage
+70,07610793515,CLIENTE UM,MARIA CONSULTORA,999.00,99.90,2026-03-20,35,1,10.00

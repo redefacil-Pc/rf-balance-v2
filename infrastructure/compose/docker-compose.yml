@@ -1,0 +1,155 @@
+# Ambiente local. Produção usa banco gerenciado, rede privada e secret manager —
+# este arquivo não é reaproveitado lá.
+#
+# Uso: docker compose -f infrastructure/compose/docker-compose.yml --env-file .env <cmd>
+# Ou os atalhos do Makefile / scripts/rfb.ps1 na raiz.
+
+name: rfbalance
+
+x-api-base: &api-base
+  build:
+    context: ../..
+    dockerfile: apps/api/Dockerfile
+    target: dev
+  env_file: [../../.env]
+  volumes:
+    - ../../apps/api/app:/app/app
+    - ../../apps/api/migrations:/app/migrations
+    - ../../apps/api/tests:/app/tests
+    - ../../apps/api/pyproject.toml:/app/pyproject.toml:ro
+    - ../../apps/api/alembic.ini:/app/alembic.ini:ro
+    - ../../apps/worker:/app/worker
+    # extração do legado para o importador em dry-run; `data/` é gitignorado,
+    # porque o dump do v1 tem PII real e não pode entrar no repositório
+    - ../../data/legado:/dados/legado
+  depends_on:
+    db: { condition: service_healthy }
+    redis: { condition: service_healthy }
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *api-base
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports: ["${API_HOST_PORT:-8000}:8000"]
+    healthcheck:
+      test:
+        ["CMD", "python", "-c",
+         "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health/live').status==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+
+  # jobs assíncronos: PDF/ZIP, recálculo, reconciliação, backup, integridade
+  worker:
+    <<: *api-base
+    command: ["python", "-m", "worker.main"]
+
+  # agenda única do sistema; manter em réplica única até existir leader election
+  scheduler:
+    <<: *api-base
+    command: ["python", "-m", "worker.scheduler"]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    environment:
+      VITE_API_PROXY_TARGET: http://api:8000
+    volumes:
+      - ../../apps/web/src:/app/src
+      - ../../apps/web/tests:/app/tests
+      - ../../apps/web/index.html:/app/index.html
+      - ../../apps/web/vite.config.ts:/app/vite.config.ts
+      - ../../apps/web/tsconfig.json:/app/tsconfig.json
+    ports: ["${WEB_HOST_PORT:-5173}:5173"]
+    depends_on: [api]
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.4
+    env_file: [../../.env]
+    # A configuração vem por flag, não por arquivo montado: bind mount no
+    # Windows fica world-writable e o MySQL ignora silenciosamente o .cnf.
+    # Em produção isso é parameter group do banco gerenciado, não este arquivo.
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+      # diagnóstico de performance (Trilha P) ligado desde o primeiro dia
+      - --slow-query-log=1
+      - --slow-query-log-file=/var/lib/mysql/slow.log
+      - --long-query-time=0.5
+      - --log-queries-not-using-indexes=1
+      # truncamento silencioso de decimal é erro, não aviso
+      - --sql-mode=STRICT_ALL_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION,NO_ZERO_DATE,NO_ZERO_IN_DATE
+      - --transaction-isolation=READ-COMMITTED
+      - --innodb-flush-log-at-trx-commit=1
+      - --innodb-buffer-pool-size=512M
+      - --max-connections=100
+    # exposto apenas para o host de desenvolvimento; em produção fica em rede privada.
+    # a porta padrão é 3307: o MySQL do sistema atual (v1) ocupa a 3306 no host
+    # e não deve ser afetado enquanto os dois sistemas coexistirem.
+    ports: ["127.0.0.1:${DB_HOST_PORT:-3307}:3306"]
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ../../infrastructure/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${OBJECT_STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${OBJECT_STORAGE_SECRET_KEY}
+    ports:
+      - "127.0.0.1:${MINIO_HOST_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+    volumes: [miniodata:/data]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # cria o bucket e encerra
+  minio-init:
+    image: minio/mc:RELEASE.2024-11-05T11-29-45Z
+    depends_on:
+      minio: { condition: service_healthy }
+    env_file: [../../.env]
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        mc alias set local "$$OBJECT_STORAGE_ENDPOINT" "$$OBJECT_STORAGE_ACCESS_KEY" "$$OBJECT_STORAGE_SECRET_KEY"
+        mc mb --ignore-existing "local/$$OBJECT_STORAGE_BUCKET"
+        mc anonymous set none "local/$$OBJECT_STORAGE_BUCKET"
+    restart: "no"
+
+volumes:
+  dbdata:
+  redisdata:
+  miniodata:
