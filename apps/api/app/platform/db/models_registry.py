@@ -31,6 +31,10 @@ from app.modules.organization.infrastructure.models.collaborator_role_model impo
 )
 from app.modules.organization.infrastructure.models.company_model import CompanyModel
 from app.modules.organization.infrastructure.models.unit_model import UnitModel
+from app.modules.receivables.infrastructure.models.receipt_model import (
+    ReceiptModel,
+    ReceiptReversalModel,
+)
 from app.modules.teams.infrastructure.models.team_assignment_model import TeamAssignmentModel
 from app.platform.bus.outbox_model import OutboxEventModel
 
@@ -48,6 +52,8 @@ __all__ = [
     "PermissionModel",
     "ProposalAttachmentModel",
     "ProposalModel",
+    "ReceiptModel",
+    "ReceiptReversalModel",
     "RoleModel",
     "RolePermissionModel",
     "SessionModel",

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from app.modules.identity.api import cookies
 from app.modules.identity.api.dependencies import (
     CurrentUser,
+    Uow,
     get_authenticate_handler,
     get_refresh_handler,
     get_revoke_handler,
@@ -30,6 +31,9 @@ from app.modules.identity.application.commands.refresh_session import (
 from app.modules.identity.application.commands.revoke_session import (
     RevokeSession,
     RevokeSessionHandler,
+)
+from app.modules.organization.infrastructure.repositories.sql_collaborator_repository import (
+    SqlCollaboratorRepository,
 )
 from app.platform.config.security import SESSION_COOKIE
 from app.platform.security.token_generator import hash_de_identificador
@@ -49,6 +53,7 @@ async def login(
     body: LoginRequest,
     request: Request,
     response: Response,
+    uow: Uow,
     handler: Annotated[AuthenticateUserHandler, Depends(get_authenticate_handler)],
 ) -> CurrentUserResponse:
     resultado = await handler.execute(
@@ -67,12 +72,23 @@ async def login(
         csrf_token=resultado.csrf_token,
         settings=request.app.state.settings.security,
     )
+    permissions = set(resultado.permissions)
+    if "OPERACIONAL" in resultado.roles:
+        collaborators = SqlCollaboratorRepository(uow.session)
+        collaborator = await collaborators.colaborador_da_conta(resultado.user_id)
+        if collaborator is not None and collaborator.is_active:
+            functions = await collaborators.papeis_vigentes_em(
+                collaborator.id, request.app.state.clock.business_date()
+            )
+            if any(item.role == "FINALIZACAO" for item in functions):
+                permissions.update(("receipts:read", "receipts:write"))
+
     return CurrentUserResponse(
         id=resultado.user_id,
         email=resultado.email,
         full_name=resultado.full_name,
         roles=resultado.roles,
-        permissions=resultado.permissions,
+        permissions=sorted(permissions),
         must_change_password=resultado.must_change_password,
     )
 

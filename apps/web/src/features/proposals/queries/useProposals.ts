@@ -3,10 +3,11 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { proposalKeys } from '@/features/proposals/queries/proposal-keys';
 import { requisitar } from '@/shared/api/http-client';
 import type { ApiError } from '@/shared/api/problem-details';
-import type { ProposalPage, StatusDaProposta } from '@/shared/types/commercial';
+import type { ProposalPage, SituacaoDeAprovacao, StatusDaProposta } from '@/shared/types/commercial';
 
 export interface ProposalFilters {
   status?: StatusDaProposta;
+  approval_status?: SituacaoDeAprovacao;
   consultant_id?: number;
   external_id?: string;
   customer_name?: string;

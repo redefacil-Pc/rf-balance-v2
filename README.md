@@ -5,12 +5,12 @@ Ecossistema de operação comercial, recebimentos, comissionamento e fechamento 
 - Especificação normativa: [08-BLUEPRINT-TECNICO-RECONSTRUCAO-ECOSSISTEMA.md](08-BLUEPRINT-TECNICO-RECONSTRUCAO-ECOSSISTEMA.md)
 - Plano de execução: [09-PLANO-IMPLEMENTACAO-FASEADO.md](09-PLANO-IMPLEMENTACAO-FASEADO.md)
 
-Estado atual: **F1 e F2 concluídas e em estabilização antes da F3**.
+Estado atual: **F1 e F2 concluídas; primeira fatia vertical da F3 entregue**.
 
 **F1 — fundação**
 
 - Ambiente Docker completo (api, worker, scheduler, web, MySQL, Redis, MinIO), `/health/ready` verde.
-- Identidade e RBAC: login por cookie `HttpOnly` com token opaco e rotação ([ADR-0003](docs/adr/0003-sessao-por-cookie-httponly.md)), 32 permissões atômicas, 5 perfis de acesso (`ADMIN`, `FINANCEIRO`, `OPERACIONAL`, `LIDERANCA` e `CONSULTOR`), throttle de login e auditoria append-only.
+- Identidade e RBAC: login por cookie `HttpOnly` com token opaco e rotação ([ADR-0003](docs/adr/0003-sessao-por-cookie-httponly.md)), 33 permissões atômicas, 5 perfis de acesso (`ADMIN`, `FINANCEIRO`, `OPERACIONAL`, `LIDERANCA` e `CONSULTOR`), throttle de login e auditoria append-only.
 - Frontend com Mantine: login, shell com navegação filtrada por permissão, rotas protegidas.
 
 **F2 — organização** (empresas, unidades, colaboradores, papéis, vínculos)
@@ -35,7 +35,7 @@ Estado atual: **F1 e F2 concluídas e em estabilização antes da F3**.
 
 **Qualidade:** suítes unitária e de integração (MySQL e Redis reais), 69 testes de frontend, `mypy --strict`, Ruff e `alembic check` como bloqueios de qualidade.
 
-**F2 concluída.** O pagamento inicial da proposta entra com `receipts` na F3, que é o módulo dono do recebimento. Para os jobs assíncronos, o [ADR-0004](docs/adr/README.md) (biblioteca de fila) segue pendente.
+**F3 em andamento.** Recebimentos já têm comprovante obrigatório, idempotência, aprovação exclusiva do Financeiro, bloqueio de autoaprovação e estorno compensatório. Somente Financeiro e Operacional com função vigente de Finalização podem lançar. Para os jobs assíncronos, o [ADR-0004](docs/adr/README.md) (biblioteca de fila) segue pendente.
 
 ## Começando
 

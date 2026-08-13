@@ -6,6 +6,7 @@ import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { CollaboratorsPage } from '@/features/collaborators/pages/CollaboratorsPage';
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
 import { ProposalsPage } from '@/features/proposals/pages/ProposalsPage';
+import { ReceiptsPage } from '@/features/receipts/pages/ReceiptsPage';
 import { TeamsPage } from '@/features/teams/pages/TeamsPage';
 import { UnitsPage } from '@/features/units/pages/UnitsPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
@@ -25,14 +26,6 @@ interface Pendente {
 }
 
 const pendentes: Pendente[] = [
-  {
-    caminho: '/receipts',
-    titulo: 'Recebimentos',
-    permissao: 'receipts:read',
-    fase: 'F3',
-    descricao:
-      'Recebimentos parciais e totais e estornos, atômicos e idempotentes, com confirmação explícita de valor.',
-  },
   {
     caminho: '/commission-rules',
     titulo: 'Regras de comissão',
@@ -121,6 +114,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permissao="proposals:read">
             <ProposalsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/receipts',
+        element: (
+          <ProtectedRoute permissao="receipts:read">
+            <ReceiptsPage />
           </ProtectedRoute>
         ),
       },

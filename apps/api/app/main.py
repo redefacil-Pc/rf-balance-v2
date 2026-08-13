@@ -15,6 +15,7 @@ from app.modules.identity.api.routes.users import router as users_router
 from app.modules.identity.infrastructure.rbac_readiness import montar_check as check_de_rbac
 from app.modules.organization.api.routes.collaborators import router as collaborators_router
 from app.modules.organization.api.routes.companies import router as companies_router
+from app.modules.receivables.api.routes.receipts import router as receipts_router
 from app.modules.teams.api.routes.assignments import router as assignments_router
 from app.platform.cache.redis_client import criar_cliente as criar_redis
 from app.platform.config.settings import get_settings
@@ -93,6 +94,7 @@ def criar_app() -> FastAPI:
     app.include_router(collaborators_router)
     app.include_router(assignments_router)
     app.include_router(proposals_router)
+    app.include_router(receipts_router)
     return app
 
 

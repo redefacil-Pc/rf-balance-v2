@@ -46,6 +46,8 @@ TABELAS_LIMPAS = (
     "legacy_import_issues",
     "legacy_import_runs",
     "proposal_attachments",
+    "receipt_reversals",
+    "receipts",
     "proposals",
     "team_assignments",
     "collaborator_roles",

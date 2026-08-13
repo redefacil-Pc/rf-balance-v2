@@ -189,6 +189,14 @@ async def test_usuario_colaborador_proposta_comprovante_e_aprovacao(
             "email": "operacao.fluxo@rfbalance.test",
             "full_name": "Operação do Fluxo",
             "roles": ["OPERACIONAL"],
+            "collaborator": {
+                "company_id": company_id,
+                "unit_id": None,
+                "document": "111.444.777-35",
+                "tax_regime": "CLT",
+                "function": "FINALIZACAO",
+                "valid_from": "2026-01-01",
+            },
         },
     )
     finance = await api.post(
@@ -256,3 +264,69 @@ async def test_usuario_colaborador_proposta_comprovante_e_aprovacao(
         )
         assert approved.status_code == 200, approved.text
         assert approved.json()["approval_status"] == "APPROVED"
+
+    async with novo_cliente() as operational_client:
+        login = await operational_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "operacao.fluxo@rfbalance.test",
+                "password": operational.json()["temporary_password"],
+            },
+        )
+        assert login.status_code == 200
+        assert "receipts:write" in login.json()["permissions"]
+        csrf = {CSRF_HEADER: operational_client.cookies[CSRF_COOKIE]}
+        receipt = await operational_client.post(
+            f"/api/v1/proposals/{proposal_id}/receipts",
+            data={
+                "amount": "100.00",
+                "business_date": "2026-08-13",
+                "payment_method": "PIX",
+                "reference": "E2E-001",
+            },
+            files={"proof": ("recebimento.pdf", b"%PDF-1.4 receipt", "application/pdf")},
+            headers={**csrf, "Idempotency-Key": "receipt-flow-001"},
+        )
+        assert receipt.status_code == 201, receipt.text
+        assert receipt.json()["status"] == "SUBMITTED"
+        receipt_id = int(receipt.json()["id"])
+        replay = await operational_client.post(
+            f"/api/v1/proposals/{proposal_id}/receipts",
+            data={
+                "amount": "100.00",
+                "business_date": "2026-08-13",
+                "payment_method": "PIX",
+                "reference": "E2E-001",
+            },
+            files={"proof": ("recebimento.pdf", b"%PDF-1.4 receipt", "application/pdf")},
+            headers={**csrf, "Idempotency-Key": "receipt-flow-001"},
+        )
+        assert replay.status_code == 201, replay.text
+        assert replay.json()["id"] == receipt_id
+
+    async with novo_cliente() as finance_client:
+        login = await finance_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "financeiro.fluxo@rfbalance.test",
+                "password": finance.json()["temporary_password"],
+            },
+        )
+        assert login.status_code == 200
+        csrf = {CSRF_HEADER: finance_client.cookies[CSRF_COOKIE]}
+        approved_receipt = await finance_client.post(
+            f"/api/v1/receipts/{receipt_id}/decision",
+            json={"decision": "APPROVE"},
+            headers=csrf,
+        )
+        assert approved_receipt.status_code == 200, approved_receipt.text
+        assert approved_receipt.json()["proposal_status"] == "PARTIALLY_PAID"
+        assert approved_receipt.json()["proposal_paid_amount"] == "100.00"
+        reversal = await finance_client.post(
+            f"/api/v1/receipts/{receipt_id}/reversal",
+            json={"reason": "lançamento duplicado", "business_date": "2026-08-13"},
+            headers=csrf,
+        )
+        assert reversal.status_code == 200, reversal.text
+        assert reversal.json()["proposal_status"] == "OPEN"
+        assert reversal.json()["proposal_paid_amount"] == "0.00"

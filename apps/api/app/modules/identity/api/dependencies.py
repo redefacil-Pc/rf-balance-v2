@@ -120,8 +120,31 @@ async def current_user(request: Request, uow: Uow) -> User:
     )
     resolvida = await handler.execute(request.cookies.get(SESSION_COOKIE, ""))
 
-    request.state.user_id = resolvida.user.id
-    return resolvida.user
+    user = resolvida.user
+    # Permissão contextual: a função operacional FINALIZACAO é mantida com
+    # vigência no colaborador, não como mais um perfil de acesso. Assim somente
+    # quem exerce a função hoje recebe a capacidade de lançar recebimentos.
+    if "OPERACIONAL" in user.roles:
+        collaborators = SqlCollaboratorRepository(uow.session)
+        collaborator = await collaborators.colaborador_da_conta(user.id)
+        if collaborator is not None and collaborator.is_active:
+            functions = await collaborators.papeis_vigentes_em(
+                collaborator.id, request.app.state.clock.business_date()
+            )
+            if any(item.role == "FINALIZACAO" for item in functions):
+                user = User(
+                    id=user.id,
+                    email=user.email,
+                    full_name=user.full_name,
+                    password_hash=user.password_hash,
+                    is_active=user.is_active,
+                    must_change_password=user.must_change_password,
+                    roles=user.roles,
+                    permissions=user.permissions | {"receipts:read", "receipts:write"},
+                )
+
+    request.state.user_id = user.id
+    return user
 
 
 CurrentUser = Annotated[User, Depends(current_user)]
