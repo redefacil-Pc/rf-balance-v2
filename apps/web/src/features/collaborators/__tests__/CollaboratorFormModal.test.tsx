@@ -171,7 +171,7 @@ describe('CollaboratorFormModal', () => {
     // `getAllByLabelText`: o Select do Mantine associa o rótulo a mais de um
     // elemento, como nos demais testes deste arquivo
     const [conta] = screen.getAllByLabelText(/^conta$/i);
-    await userEvent.setup().click(conta);
+    await userEvent.setup().click(conta!);
 
     expect(await screen.findByText(/Conta Livre — livre@rfbalance.local/)).toBeInTheDocument();
   });

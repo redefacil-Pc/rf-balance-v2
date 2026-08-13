@@ -173,9 +173,7 @@ async def purgar_obsoletos(session: AsyncSession) -> RelatorioDePurga:
             .group_by(UserRoleModel.role_id)
         )
     ).all()
-    em_uso: dict[int, int] = {
-        int(role_id): int(total) for role_id, total in linhas_em_uso
-    }
+    em_uso: dict[int, int] = {int(role_id): int(total) for role_id, total in linhas_em_uso}
 
     for code, papel in obsoletos.items():
         contas = int(em_uso.get(papel.id, 0))
@@ -219,7 +217,8 @@ async def verificar(session: AsyncSession) -> Divergencia:
     }
 
     esperadas = {
-        (papel, permissao) for papel, permissoes_do_papel in PAPEIS.items()
+        (papel, permissao)
+        for papel, permissoes_do_papel in PAPEIS.items()
         for permissao in permissoes_do_papel
     }
     # só cobra concessão de papel que existe: papel ausente já é reportado à parte
@@ -305,9 +304,7 @@ async def _sincronizar_concessoes(
     # o papel obsoleto mantém as concessões dele: quem ainda o tem não perde
     # acesso por deploy. Só se revoga o que pertence a papel do catálogo.
     ids_do_catalogo = {id_do_papel[papel] for papel in PAPEIS}
-    sobrando = {
-        chave for chave in set(atuais) - desejadas if chave[0] in ids_do_catalogo
-    }
+    sobrando = {chave for chave in set(atuais) - desejadas if chave[0] in ids_do_catalogo}
     for chave in sobrando:
         await session.execute(
             delete(RolePermissionModel).where(

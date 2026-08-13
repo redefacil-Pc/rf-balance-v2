@@ -62,3 +62,9 @@ class ContaJaVinculadaError(DomainError):
     status = 409
     code = "conta-ja-vinculada"
     title = "Conta já vinculada"
+
+
+class DadosBancariosInvalidosError(DomainError):
+    status = 422
+    code = "dados-bancarios-invalidos"
+    title = "Dados bancários inválidos"

@@ -41,3 +41,9 @@ class LeaderAtDateResponse(BaseModel):
     assignment_type: str
     start_date: date
     end_date: date | None
+
+
+class CloseAssignmentRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    end_date: date
+    reason: str = Field(min_length=3, max_length=255)

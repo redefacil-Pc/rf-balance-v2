@@ -42,3 +42,35 @@ export function useCreateUnit() {
     },
   });
 }
+
+export function useUpdateCompany() {
+  const client = useQueryClient();
+  return useMutation<void, ApiError, { id: number; legal_name: string; trade_name: string }>({
+    mutationFn: ({ id, ...body }) => requisitar<void>(`/companies/${id}`, { method: 'PUT', body }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: organizationKeys.empresas }),
+  });
+}
+
+export function useSetCompanyStatus() {
+  const client = useQueryClient();
+  return useMutation<void, ApiError, { id: number; is_active: boolean }>({
+    mutationFn: ({ id, is_active }) => requisitar<void>(`/companies/${id}/status`, { method: 'PUT', body: { is_active } }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: organizationKeys.empresas }),
+  });
+}
+
+export function useUpdateUnit() {
+  const client = useQueryClient();
+  return useMutation<void, ApiError, { id: number; code: string; name: string }>({
+    mutationFn: ({ id, ...body }) => requisitar<void>(`/units/${id}`, { method: 'PUT', body }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['units'] }),
+  });
+}
+
+export function useSetUnitStatus() {
+  const client = useQueryClient();
+  return useMutation<void, ApiError, { id: number; is_active: boolean }>({
+    mutationFn: ({ id, is_active }) => requisitar<void>(`/units/${id}/status`, { method: 'PUT', body: { is_active } }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['units'] }),
+  });
+}

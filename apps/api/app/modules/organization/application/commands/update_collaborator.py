@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
+from app.modules.organization.application.commands.create_collaborator import (
+    ChavePixSolicitada,
+    _mascarar_chave,
+)
 from app.modules.organization.domain.errors import (
     RecursoNaoEncontradoError,
     UnidadeDeOutraEmpresaError,
@@ -17,6 +21,8 @@ from app.modules.organization.infrastructure.repositories.sql_company_repository
     SqlCompanyRepository,
 )
 from app.platform.db.session.unit_of_work import UnitOfWork
+from app.platform.security.pii_cipher import PiiCipher
+from app.platform.time.clock import Clock
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +32,9 @@ class UpdateCollaborator:
     unit_id: int | None
     full_name: str
     tax_regime: RegimeTributario
+    email: str | None
+    phone: str | None
+    chave_pix: ChavePixSolicitada | None
     ator: int | None
     correlation_id: str | None
 
@@ -38,11 +47,15 @@ class UpdateCollaboratorHandler:
         colaboradores: SqlCollaboratorRepository,
         empresas: SqlCompanyRepository,
         audit: AuditRecorder,
+        cipher: PiiCipher,
+        clock: Clock,
     ) -> None:
         self._uow = uow
         self._colaboradores = colaboradores
         self._empresas = empresas
         self._audit = audit
+        self._cipher = cipher
+        self._clock = clock
 
     async def execute(self, cmd: UpdateCollaborator) -> None:
         modelo = await self._colaboradores.buscar_por_id(cmd.collaborator_id)
@@ -69,8 +82,25 @@ class UpdateCollaboratorHandler:
             unit_id=cmd.unit_id,
             full_name=cmd.full_name.strip(),
             tax_regime=cmd.tax_regime.value,
+            email=(cmd.email or "").strip().lower() or None,
+            phone=(cmd.phone or "").strip() or None,
             ator=cmd.ator,
         )
+        if cmd.chave_pix is not None:
+            hoje = self._clock.business_date()
+            await self._colaboradores.encerrar_chaves_vigentes(
+                collaborator_id=cmd.collaborator_id, em=hoje
+            )
+            valor = cmd.chave_pix.valor.strip()
+            await self._colaboradores.registrar_chave_pix(
+                collaborator_id=cmd.collaborator_id,
+                key_type=cmd.chave_pix.tipo,
+                key_encrypted=self._cipher.cifrar(valor),
+                key_hash=self._cipher.hash_de_busca(valor),
+                key_masked=_mascarar_chave(valor),
+                valid_from=hoje,
+                ator=cmd.ator,
+            )
         self._audit.registrar(
             module="organization",
             action="collaborator.updated",
@@ -85,6 +115,9 @@ class UpdateCollaboratorHandler:
                     "company_id": cmd.company_id,
                     "unit_id": cmd.unit_id,
                     "tax_regime": cmd.tax_regime.value,
+                    "email": (cmd.email or "").strip().lower() or None,
+                    "phone": (cmd.phone or "").strip() or None,
+                    "payment_key_changed": cmd.chave_pix is not None,
                 },
             },
         )

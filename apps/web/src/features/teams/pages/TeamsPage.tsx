@@ -3,6 +3,7 @@ import { Grid, Stack, Text, Title } from '@mantine/core';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { AssignLeaderForm } from '@/features/teams/components/AssignLeaderForm';
 import { LeaderAtDateCard } from '@/features/teams/components/LeaderAtDateCard';
+import { AssignmentHistoryCard } from '@/features/teams/components/AssignmentHistoryCard';
 
 export function TeamsPage() {
   const { pode } = useAuth();
@@ -28,6 +29,7 @@ export function TeamsPage() {
         <Grid.Col span={{ base: 12, lg: pode('teams:write') ? 6 : 12 }}>
           <LeaderAtDateCard />
         </Grid.Col>
+        <Grid.Col span={12}><AssignmentHistoryCard canWrite={pode('teams:write')} /></Grid.Col>
       </Grid>
     </Stack>
   );

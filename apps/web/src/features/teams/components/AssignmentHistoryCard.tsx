@@ -1,0 +1,15 @@
+import { Alert, Button, Card, Group, Modal, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { useState } from 'react';
+import { useCollaborators } from '@/features/collaborators/queries/useCollaborators';
+import { useCloseAssignment } from '@/features/teams/mutations/useCloseAssignment';
+import { useAssignmentHistory } from '@/features/teams/queries/useAssignments';
+import type { Assignment } from '@/shared/types/organization';
+
+const HOJE = new Date().toISOString().slice(0, 10);
+export function AssignmentHistoryCard({ canWrite }: { canWrite: boolean }) {
+  const collaborators = useCollaborators({}); const items = (collaborators.data?.pages ?? []).flatMap((p) => p.items); const [consultantId, setConsultantId] = useState<number>(); const history = useAssignmentHistory(consultantId); const close = useCloseAssignment(consultantId); const [selected, setSelected] = useState<Assignment | null>(null); const [endDate, setEndDate] = useState(HOJE); const [reason, setReason] = useState(''); const name = (id: number) => items.find((x) => x.id === id)?.full_name ?? `#${id}`;
+  return <Card withBorder radius="md" padding="lg"><Title order={3} size="h5">Histórico e encerramento</Title><Text size="sm" c="dimmed" mb="md">Consulte todos os vínculos de um colaborador e encerre o vigente com motivo auditável.</Text><Select searchable clearable label="Colaborador liderado" data={items.map((x) => ({ value: String(x.id), label: x.full_name }))} value={consultantId ? String(consultantId) : null} onChange={(v) => setConsultantId(v ? Number(v) : undefined)} />
+    {history.error && <Alert color="red" mt="md">{history.error.problem.detail}</Alert>}{consultantId && <Table striped mt="md"><Table.Thead><Table.Tr><Table.Th>Tipo</Table.Th><Table.Th>Líder</Table.Th><Table.Th>Início</Table.Th><Table.Th>Fim</Table.Th>{canWrite && <Table.Th>Ação</Table.Th>}</Table.Tr></Table.Thead><Table.Tbody>{(history.data ?? []).map((item) => <Table.Tr key={item.id}><Table.Td>{item.assignment_type}</Table.Td><Table.Td>{name(item.leader_id)}</Table.Td><Table.Td>{item.start_date}</Table.Td><Table.Td>{item.end_date ?? 'Vigente'}</Table.Td>{canWrite && <Table.Td><Button size="compact-xs" variant="subtle" color="red" disabled={item.end_date !== null} onClick={() => setSelected(item)}>Encerrar</Button></Table.Td>}</Table.Tr>)}</Table.Tbody></Table>}
+    <Modal opened={selected !== null} onClose={() => setSelected(null)} title="Encerrar vínculo" centered><Stack><TextInput type="date" label="Data final" value={endDate} onChange={(e) => setEndDate(e.currentTarget.value)} /><TextInput label="Motivo" value={reason} onChange={(e) => setReason(e.currentTarget.value)} /><Group justify="flex-end"><Button variant="default" onClick={() => setSelected(null)}>Cancelar</Button><Button color="red" disabled={reason.trim().length < 3} loading={close.isPending} onClick={() => selected && close.mutate({ id: selected.id, end_date: endDate, reason: reason.trim() }, { onSuccess: () => { setSelected(null); setReason(''); } })}>Encerrar</Button></Group></Stack></Modal>
+  </Card>;
+}

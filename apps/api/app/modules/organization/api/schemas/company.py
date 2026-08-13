@@ -39,3 +39,20 @@ class UnitResponse(BaseModel):
     code: str
     name: str
     is_active: bool
+
+
+class UpdateCompanyRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    legal_name: str = Field(min_length=2, max_length=200)
+    trade_name: str = Field(default="", max_length=200)
+
+
+class UpdateUnitRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    code: str = Field(min_length=1, max_length=30)
+    name: str = Field(min_length=2, max_length=120)
+
+
+class SetCatalogStatusRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    is_active: bool

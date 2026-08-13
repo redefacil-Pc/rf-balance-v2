@@ -5,7 +5,7 @@ import { requisitar } from '@/shared/api/http-client';
 import type { ApiError } from '@/shared/api/problem-details';
 import type { TaxRegime } from '@/shared/types/organization';
 
-interface Entrada { id: number; company_id: number; unit_id: number | null; full_name: string; tax_regime: TaxRegime }
+interface Entrada { id: number; company_id: number; unit_id: number | null; full_name: string; tax_regime: TaxRegime; email: string | null; phone: string | null; payment_key?: { key_type: string; key: string } }
 
 export function useUpdateCollaborator() {
   const client = useQueryClient();

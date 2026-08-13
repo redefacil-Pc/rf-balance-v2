@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Code, Group, Modal, Stack, Text, Title } from '@mantine/core';
+import { Alert, Button, Card, Code, Group, Modal, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { IconPlus } from '@tabler/icons-react';
@@ -15,7 +15,10 @@ import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
 
 export function UsersPage() {
   const [opened, modal] = useDisclosure(false);
-  const users = useUsers();
+  const [search, setSearch] = useState('');
+  const [role, setRole] = useState<string | undefined>();
+  const [active, setActive] = useState<boolean | undefined>();
+  const users = useUsers({ search: search.trim() || undefined, role, is_active: active });
   const { usuario } = useAuth();
   const [editing, setEditing] = useState<SystemUser | null>(null);
   const [changingStatus, setChangingStatus] = useState<SystemUser | null>(null);
@@ -34,6 +37,13 @@ export function UsersPage() {
         </div>
         <Button leftSection={<IconPlus size={16} />} onClick={modal.open}>Novo usuário</Button>
       </Group>
+      <Card withBorder radius="md" padding="md">
+        <Group grow align="flex-end">
+          <TextInput label="Buscar" placeholder="Nome ou e-mail" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
+          <Select label="Perfil" clearable data={['ADMIN', 'FINANCEIRO', 'OPERACIONAL', 'LIDERANCA', 'CONSULTOR']} value={role ?? null} onChange={(value) => setRole(value ?? undefined)} />
+          <Select label="Situação" clearable data={[{ value: 'true', label: 'Ativos' }, { value: 'false', label: 'Inativos' }]} value={active === undefined ? null : String(active)} onChange={(value) => setActive(value === null ? undefined : value === 'true')} />
+        </Group>
+      </Card>
       <Card withBorder radius="md" padding={0}>
         <EstadoDaLista
           carregando={users.isPending}

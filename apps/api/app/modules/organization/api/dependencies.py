@@ -17,6 +17,8 @@ from app.modules.organization.application.commands.deactivate_collaborator impor
 from app.modules.organization.application.commands.link_collaborator_account import (
     LinkCollaboratorAccountHandler,
 )
+from app.modules.organization.application.commands.manage_bank_account import BankAccountHandler
+from app.modules.organization.application.commands.manage_catalog import CatalogHandler
 from app.modules.organization.application.commands.manage_collaborator_functions import (
     AddCollaboratorFunctionHandler,
     CloseCollaboratorFunctionHandler,
@@ -29,6 +31,9 @@ from app.modules.organization.application.queries.list_collaborator_functions im
 )
 from app.modules.organization.application.queries.list_collaborators import (
     ListCollaboratorsHandler,
+)
+from app.modules.organization.infrastructure.repositories.sql_bank_account_repository import (
+    SqlBankAccountRepository,
 )
 from app.modules.organization.infrastructure.repositories.sql_collaborator_repository import (
     SqlCollaboratorRepository,
@@ -87,6 +92,8 @@ def get_update_collaborator_handler(request: Request, uow: Uow) -> UpdateCollabo
         colaboradores=SqlCollaboratorRepository(uow.session),
         empresas=SqlCompanyRepository(uow.session),
         audit=SqlAuditRecorder(uow.session, request.app.state.clock),
+        cipher=request.app.state.pii_cipher,
+        clock=request.app.state.clock,
     )
 
 
@@ -122,10 +129,26 @@ def get_close_function_handler(request: Request, uow: Uow) -> CloseCollaboratorF
 
 
 def get_list_functions_handler(uow: Uow) -> ListCollaboratorFunctionsHandler:
-    return ListCollaboratorFunctionsHandler(
-        colaboradores=SqlCollaboratorRepository(uow.session)
-    )
+    return ListCollaboratorFunctionsHandler(colaboradores=SqlCollaboratorRepository(uow.session))
 
 
 def get_company_repository(uow: Uow) -> SqlCompanyRepository:
     return SqlCompanyRepository(uow.session)
+
+
+def get_catalog_handler(request: Request, uow: Uow) -> CatalogHandler:
+    return CatalogHandler(
+        uow=uow,
+        empresas=SqlCompanyRepository(uow.session),
+        audit=SqlAuditRecorder(uow.session, request.app.state.clock),
+    )
+
+
+def get_bank_account_handler(request: Request, uow: Uow) -> BankAccountHandler:
+    return BankAccountHandler(
+        uow=uow,
+        accounts=SqlBankAccountRepository(uow.session),
+        collaborators=SqlCollaboratorRepository(uow.session),
+        cipher=request.app.state.pii_cipher,
+        audit=SqlAuditRecorder(uow.session, request.app.state.clock),
+    )

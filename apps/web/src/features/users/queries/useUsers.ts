@@ -6,10 +6,16 @@ import type { ApiError } from '@/shared/api/problem-details';
 
 export const userKeys = { all: ['users'] as const, roles: ['users', 'roles'] as const };
 
-export function useUsers() {
+export interface UserFilters { search?: string; role?: string; is_active?: boolean }
+
+export function useUsers(filters: UserFilters = {}) {
+  const params = new URLSearchParams({ limit: '200' });
+  if (filters.search) params.set('search', filters.search);
+  if (filters.role) params.set('role', filters.role);
+  if (filters.is_active !== undefined) params.set('is_active', String(filters.is_active));
   return useQuery<UserPage, ApiError>({
-    queryKey: userKeys.all,
-    queryFn: ({ signal }) => requisitar<UserPage>('/users?limit=200', { signal }),
+    queryKey: [...userKeys.all, filters],
+    queryFn: ({ signal }) => requisitar<UserPage>(`/users?${params}`, { signal }),
   });
 }
 

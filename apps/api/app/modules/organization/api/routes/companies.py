@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from app.modules.identity.api.dependencies import require_permission
 from app.modules.identity.domain.entities.user import User
 from app.modules.organization.api.dependencies import (
+    get_catalog_handler,
     get_company_repository,
     get_create_company_handler,
     get_create_unit_handler,
@@ -16,14 +17,24 @@ from app.modules.organization.api.dependencies import (
 from app.modules.organization.api.schemas.company import (
     CompanyRequest,
     CompanyResponse,
+    SetCatalogStatusRequest,
     UnitRequest,
     UnitResponse,
+    UpdateCompanyRequest,
+    UpdateUnitRequest,
 )
 from app.modules.organization.application.commands.create_company import (
     CreateCompany,
     CreateCompanyHandler,
 )
 from app.modules.organization.application.commands.create_unit import CreateUnit, CreateUnitHandler
+from app.modules.organization.application.commands.manage_catalog import (
+    CatalogHandler,
+    SetCompanyStatus,
+    SetUnitStatus,
+    UpdateCompany,
+    UpdateUnit,
+)
 from app.modules.organization.infrastructure.repositories.sql_company_repository import (
     SqlCompanyRepository,
 )
@@ -113,3 +124,79 @@ async def listar_unidades(
             company_id=company_id, somente_ativas=only_active
         )
     ]
+
+
+@router.put("/companies/{company_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+async def alterar_empresa(
+    company_id: int,
+    body: UpdateCompanyRequest,
+    request: Request,
+    ator: Annotated[User, Depends(require_permission("companies:write"))],
+    handler: Annotated[CatalogHandler, Depends(get_catalog_handler)],
+) -> None:
+    await handler.update_company(
+        UpdateCompany(
+            company_id=company_id,
+            legal_name=body.legal_name,
+            trade_name=body.trade_name,
+            ator=ator.id,
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+    )
+
+
+@router.put(
+    "/companies/{company_id}/status", response_model=None, status_code=status.HTTP_204_NO_CONTENT
+)
+async def situacao_empresa(
+    company_id: int,
+    body: SetCatalogStatusRequest,
+    request: Request,
+    ator: Annotated[User, Depends(require_permission("companies:write"))],
+    handler: Annotated[CatalogHandler, Depends(get_catalog_handler)],
+) -> None:
+    await handler.set_company_status(
+        SetCompanyStatus(
+            company_id=company_id,
+            ativo=body.is_active,
+            ator=ator.id,
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+    )
+
+
+@router.put("/units/{unit_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+async def alterar_unidade(
+    unit_id: int,
+    body: UpdateUnitRequest,
+    request: Request,
+    ator: Annotated[User, Depends(require_permission("companies:write"))],
+    handler: Annotated[CatalogHandler, Depends(get_catalog_handler)],
+) -> None:
+    await handler.update_unit(
+        UpdateUnit(
+            unit_id=unit_id,
+            code=body.code,
+            name=body.name,
+            ator=ator.id,
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+    )
+
+
+@router.put("/units/{unit_id}/status", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+async def situacao_unidade(
+    unit_id: int,
+    body: SetCatalogStatusRequest,
+    request: Request,
+    ator: Annotated[User, Depends(require_permission("companies:write"))],
+    handler: Annotated[CatalogHandler, Depends(get_catalog_handler)],
+) -> None:
+    await handler.set_unit_status(
+        SetUnitStatus(
+            unit_id=unit_id,
+            ativo=body.is_active,
+            ator=ator.id,
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+    )

@@ -79,6 +79,39 @@ class UpdateCollaboratorRequest(BaseModel):
     unit_id: int | None = None
     full_name: str = Field(min_length=3, max_length=200)
     tax_regime: RegimeTributario
+    email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=30)
+    payment_key: PaymentKeyRequest | None = None
+
+
+class CollaboratorDetailResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    id: int
+    email: str | None
+    phone: str | None
+    user_id: int | None
+    payment_key_type: str | None
+    payment_key_masked: str | None
+
+
+class BankAccountRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    bank_code: str = Field(min_length=1, max_length=5)
+    bank_name: str = Field(min_length=2, max_length=120)
+    branch: str = Field(min_length=1, max_length=10)
+    account_number: str | None = Field(default=None, max_length=40)
+    account_type: str = Field(pattern="^(CORRENTE|POUPANCA|PAGAMENTO)$")
+
+
+class BankAccountResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    id: int
+    bank_code: str
+    bank_name: str
+    branch: str
+    account_masked: str
+    account_type: str
+    is_active: bool
 
 
 class CollaboratorPageResponse(BaseModel):

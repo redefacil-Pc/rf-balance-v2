@@ -151,6 +151,8 @@ class SqlCollaboratorRepository:
         unit_id: int | None,
         full_name: str,
         tax_regime: str,
+        email: str | None,
+        phone: str | None,
         ator: int | None,
     ) -> None:
         await self._session.execute(
@@ -161,6 +163,8 @@ class SqlCollaboratorRepository:
                 unit_id=unit_id,
                 full_name=full_name,
                 tax_regime=tax_regime,
+                email=email,
+                phone=phone,
                 updated_by=ator,
                 version=CollaboratorModel.version + 1,
             )

@@ -6,7 +6,7 @@ entidade separada (a skill de arquitetura chama isso de cerimônia sem regra).
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.organization.infrastructure.models.company_model import CompanyModel
@@ -88,3 +88,39 @@ class SqlCompanyRepository:
         if somente_ativas:
             consulta = consulta.where(UnitModel.is_active.is_(True))
         return list((await self._session.scalars(consulta)).all())
+
+    async def atualizar_empresa(
+        self, *, company_id: int, legal_name: str, trade_name: str, ator: int | None
+    ) -> None:
+        await self._session.execute(
+            update(CompanyModel)
+            .where(CompanyModel.id == company_id)
+            .values(legal_name=legal_name, trade_name=trade_name, updated_by=ator)
+        )
+
+    async def definir_situacao_empresa(
+        self, *, company_id: int, ativo: bool, ator: int | None
+    ) -> None:
+        await self._session.execute(
+            update(CompanyModel)
+            .where(CompanyModel.id == company_id)
+            .values(is_active=ativo, updated_by=ator)
+        )
+
+    async def atualizar_unidade(
+        self, *, unit_id: int, code: str, name: str, ator: int | None
+    ) -> None:
+        await self._session.execute(
+            update(UnitModel)
+            .where(UnitModel.id == unit_id)
+            .values(code=code, name=name, updated_by=ator)
+        )
+
+    async def definir_situacao_unidade(
+        self, *, unit_id: int, ativo: bool, ator: int | None
+    ) -> None:
+        await self._session.execute(
+            update(UnitModel)
+            .where(UnitModel.id == unit_id)
+            .values(is_active=ativo, updated_by=ator)
+        )

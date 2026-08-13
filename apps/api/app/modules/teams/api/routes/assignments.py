@@ -17,9 +17,14 @@ from app.modules.organization.infrastructure.repositories.sql_collaborator_repos
 from app.modules.teams.api.schemas.assignment import (
     AssignLeaderRequest,
     AssignmentResponse,
+    CloseAssignmentRequest,
     LeaderAtDateResponse,
 )
 from app.modules.teams.application.commands.assign_leader import AssignLeader, AssignLeaderHandler
+from app.modules.teams.application.commands.close_assignment import (
+    CloseAssignment,
+    CloseAssignmentHandler,
+)
 from app.modules.teams.application.queries.get_leader_at_date import GetLeaderAtDateHandler
 from app.modules.teams.infrastructure.repositories.sql_team_assignment_repository import (
     SqlTeamAssignmentRepository,
@@ -42,6 +47,15 @@ def get_leader_query_handler(uow: Uow) -> GetLeaderAtDateHandler:
     return GetLeaderAtDateHandler(
         vinculos=SqlTeamAssignmentRepository(uow.session),
         colaboradores=SqlCollaboratorRepository(uow.session),
+    )
+
+
+def get_close_handler(request: Request, uow: Uow) -> CloseAssignmentHandler:
+    return CloseAssignmentHandler(
+        uow=uow,
+        assignments=SqlTeamAssignmentRepository(uow.session),
+        audit=SqlAuditRecorder(uow.session, request.app.state.clock),
+        clock=request.app.state.clock,
     )
 
 
@@ -119,3 +133,22 @@ async def historico_do_consultor(
         )
         for v in vinculos
     ]
+
+
+@router.put("/{assignment_id}/closure", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+async def encerrar_vinculo(
+    assignment_id: int,
+    body: CloseAssignmentRequest,
+    request: Request,
+    ator: Annotated[User, Depends(require_permission("teams:write"))],
+    handler: Annotated[CloseAssignmentHandler, Depends(get_close_handler)],
+) -> None:
+    await handler.execute(
+        CloseAssignment(
+            assignment_id=assignment_id,
+            end_date=body.end_date,
+            reason=body.reason,
+            actor=ator.id,
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+    )

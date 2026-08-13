@@ -77,6 +77,15 @@ export interface CollaboratorPage {
   next_cursor: string | null;
 }
 
+export interface CollaboratorDetail {
+  id: number;
+  email: string | null;
+  phone: string | null;
+  user_id: number | null;
+  payment_key_type: string | null;
+  payment_key_masked: string | null;
+}
+
 export interface Assignment {
   id: number;
   consultant_id: number;
