@@ -6,6 +6,7 @@ import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { CollaboratorsPage } from '@/features/collaborators/pages/CollaboratorsPage';
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
 import { ProposalsPage } from '@/features/proposals/pages/ProposalsPage';
+import { ProposalApprovalsPage } from '@/features/proposals/pages/ProposalApprovalsPage';
 import { ReceiptsPage } from '@/features/receipts/pages/ReceiptsPage';
 import { TeamsPage } from '@/features/teams/pages/TeamsPage';
 import { UnitsPage } from '@/features/units/pages/UnitsPage';
@@ -114,6 +115,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permissao="proposals:read">
             <ProposalsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/proposal-approvals',
+        element: (
+          <ProtectedRoute permissao="proposals:approve">
+            <ProposalApprovalsPage />
           </ProtectedRoute>
         ),
       },

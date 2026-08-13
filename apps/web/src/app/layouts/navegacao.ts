@@ -53,6 +53,13 @@ export const navegacao: GrupoDeNavegacao[] = [
         fase: 'F2',
       },
       {
+        rotulo: 'Aprovar propostas',
+        caminho: '/proposal-approvals',
+        icone: IconClipboardList,
+        permissao: 'proposals:approve',
+        fase: 'F2',
+      },
+      {
         rotulo: 'Recebimentos',
         caminho: '/receipts',
         icone: IconCashBanknote,
