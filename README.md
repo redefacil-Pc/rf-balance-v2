@@ -5,9 +5,10 @@ Ecossistema de operação comercial, recebimentos, comissionamento e fechamento 
 - Especificação normativa: [08-BLUEPRINT-TECNICO-RECONSTRUCAO-ECOSSISTEMA.md](08-BLUEPRINT-TECNICO-RECONSTRUCAO-ECOSSISTEMA.md)
 - Plano de execução: [09-PLANO-IMPLEMENTACAO-FASEADO.md](09-PLANO-IMPLEMENTACAO-FASEADO.md)
 
-Estado atual: **F1, F2 e F3 concluídas no código e validadas localmente**. A
-validação operacional do setor piloto em produção-staging permanece como gate
-de implantação, não como pendência de implementação.
+Estado atual: **F1 a F5 concluídas no código e validadas localmente; F6
+parcial**. A validação operacional do setor piloto em produção-staging e a
+homologação do comissionamento pelo Financeiro permanecem como gates de
+implantação, não como pendências de implementação.
 
 **F1 — fundação**
 
@@ -35,9 +36,9 @@ de implantação, não como pendência de implementação.
 - Fila de exceção em `legacy_import_issues` para tudo que exigiria adivinhação: documento inválido, `role` fora do catálogo, BKO/finalização citados por nome que não resolve, e as estruturas duplicadas `sales`/`propostas`, que nunca viram proposta canônica sozinhas.
 - **Não escreve** no modelo canônico: pedir carga real levanta erro explícito, e um teste prova que as tabelas continuam vazias. [Runbook](docs/runbooks/importacao-legado.md).
 
-**Qualidade:** 130 testes unitários, 142 testes de integração (MySQL, Redis e
-storage reais) e 74 testes de frontend, além de `mypy --strict`, Ruff, build do
-frontend e `alembic check` como bloqueios de qualidade.
+**Qualidade:** 155 testes unitários, 163 testes de integração (MySQL, Redis e
+storage reais) e 103 testes de frontend, além de `mypy --strict` em 438
+arquivos, Ruff, build do frontend e `alembic check` como bloqueios de qualidade.
 
 **F3 — recebíveis concluída.** Recebimentos têm comprovante obrigatório,
 horário efetivo, idempotência, conferência exclusiva do Financeiro, bloqueio de
@@ -50,11 +51,32 @@ de Finalização podem declarar recebimento.
 O relatório de encerramento e as evidências estão em
 [docs/architecture/fechamento-f1-f3.md](docs/architecture/fechamento-f1-f3.md).
 
-**F4 iniciada.** A primeira fatia do motor de comissão do consultor padrão
-MEI/CLT já materializa snapshot e ledger no reconhecimento do recebimento, com
-débito compensatório em estornos. A tela de regras permite criar rascunhos,
-editar faixas MEI/CLT e ativar novas versões com vigência futura. Veja
-[docs/architecture/f4-motor-comissao.md](docs/architecture/f4-motor-comissao.md).
+**F4 — motor de comissão concluída.** Rule sets e configurações de estratégia
+versionados por vigência alimentam os motores do Consultor padrão, do Consultor
+MEI Escalonado e das estratégias de grupo (líder comercial, líder MEI geral,
+finalizador e líder de finalização). Cada cálculo grava snapshot com inputs,
+outputs, hash, versão e regra aplicada; `commission_entries` é append-only e
+estorno gera débito compensatório. Política individual por beneficiário permite
+exclusão ou override de TPS. A memória de cálculo é consultável por recebimento
+e por proposta. Veja
+[docs/architecture/f4-motor-comissao.md](docs/architecture/f4-motor-comissao.md)
+e o [roteiro de homologação](docs/11-ROTEIRO-HOMOLOGACAO-COMISSOES.md).
+
+**F5 — períodos e fechamento concluída.** Períodos têm cutoff explícito e, uma
+vez fechados, bloqueiam a geração de fechamento no domínio. Settlements são
+gerados por beneficiário com desconto, bônus, adiamento e carryover, aceitam
+lançamento manual de BKO e bônus de finalização tipificados, e registram
+pagamento. A reabertura exige `periods:reopen` e motivo descritivo, preserva o
+histórico de fechamento e recusa período com fechamento já pago — nesse caso a
+correção é por compensação no período atual.
+
+**F6 — relatórios parcial.** Dashboard, relatório financeiro geral e por
+beneficiário com export PDF e XLSX, e console de auditoria estão entregues.
+Faltam relatório por equipe e por unidade, geração de documentos em lote
+(`document_jobs`, `stored_documents`, ZIP) e o orçamento de p95 medido no CI.
+
+As evidências e ressalvas de F4 a F6 estão em
+[docs/architecture/fechamento-f4-f6.md](docs/architecture/fechamento-f4-f6.md).
 
 ## Começando
 

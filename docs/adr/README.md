@@ -18,7 +18,7 @@ Nome: `NNNN-titulo-kebab.md`. Template: [0000-template.md](0000-template.md).
 | 0008 | Data usada para produção e atribuição de líder | F4 |
 | 0009 | Tolerância de quitação | **proposto** — [0009](0009-tolerancia-de-quitacao-versionada.md): mecanismo implementado, limites aguardam o financeiro |
 | 0010 | Política de período e cutoff | F5 |
-| 0011 | Tratamento de histórico fechado | F5 |
+| 0011 | Tratamento de histórico fechado | F5 — reabertura implementada com permissão única (`periods:reopen`), motivo obrigatório e bloqueio de fechamento já pago; a dupla aprovação segue em aberto |
 | ~~0012~~ | ~~Estratégia de criptografia de PII~~ | **aceito** — [0012](0012-criptografia-de-pii.md) |
 | ~~0013~~ | ~~Modelo de papéis de colaborador e intervalos de vigência~~ | **aceito** — [0013](0013-papeis-de-colaborador-e-intervalos-de-vigencia.md) |
 | 0014 | Read models síncronos versus eventuais | F6 |

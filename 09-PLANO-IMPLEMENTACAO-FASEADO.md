@@ -36,6 +36,24 @@ Estimativas em semanas assumem 2 desenvolvedores em tempo integral. São premiss
 
 Total: ~29 semanas. A ordem é a da seção 23 do blueprint e **não deve ser reordenada** — cada fase depende do invariante da anterior.
 
+### Estado de execução em 18/08/2026
+
+| Fase | Estado | Evidência |
+|---|---|---|
+| F1 | concluída no código | Docker, CI, RBAC, auditoria/outbox, worker, scheduler, health e métricas |
+| F2 | concluída no código | organização, vínculos temporais, proposta canônica, dry-run legado e verificadores de integridade |
+| F3 | concluída no código | recebimentos idempotentes, concorrência, estornos parciais, reconciliação, auditoria e outbox atômicas |
+| F4 | concluída no código | rule sets e configurações versionados, consultor padrão e escalonado, estratégias de grupo, política individual, ledger append-only e memória de cálculo |
+| F5 | concluída no código | períodos com cutoff, fechamento, geração de settlements, BKO manual, adiamento/carryover, pagamento e reabertura auditada |
+| F6 | **parcial** | dashboard, relatório financeiro geral e individual com export PDF/XLSX entregues; faltam relatório por equipe e por unidade, geração de documentos em lote (`document_jobs`, `stored_documents`, ZIP) e o orçamento de p95 no CI |
+| F7 | não iniciada | apenas o importador legado em dry-run, herdado da F2 |
+
+O setor piloto em produção-staging é o gate operacional antes da implantação.
+Resultados locais e ressalvas de F1–F3 estão em
+[`docs/architecture/fechamento-f1-f3.md`](docs/architecture/fechamento-f1-f3.md);
+de F4–F6, em
+[`docs/architecture/fechamento-f4-f6.md`](docs/architecture/fechamento-f4-f6.md).
+
 ```text
 F0 descoberta
  └─> F1 plataforma/segurança ──> F2 organização+propostas ──> F3 recebimentos
@@ -227,7 +245,7 @@ A fase mais crítica e a que mais depende da F0.
 **Sub-ordem interna** (não paralelizar):
 
 1. rule sets + vigência + validação de lacuna/sobreposição;
-2. consultor padrão (MEI e CLT);
+2. consultor padrão MEI (Consultor CLT retirado e substituído pelo Escalonado);
 3. proporcionalidade e pagamento parcial;
 4. MEI Escalonado (produção e TPS);
 5. líder comercial e líder MEI geral;
@@ -395,9 +413,11 @@ Decisões de F1 são urgentes: mudam código de plataforma.
 
 ## 8. Próximo passo concreto
 
-Duas coisas podem começar já, em paralelo:
+Com F1–F5 no código e a F6 parcial, o caminho crítico é este:
 
-1. **F0**: agendar as entrevistas e extrair os casos dourados do banco atual.
-2. **F1 (scaffold)**: criar a estrutura de repositório, os Dockerfiles multi-stage, o compose acima, o Makefile e o CI — isso não depende das respostas de negócio.
+1. **Fechar a F6**: relatório por equipe e por unidade, geração de documentos em lote (`document_jobs`, `stored_documents`, ZIP) e o orçamento de p95 medido no CI, que ainda não existe como teste.
+2. **Homologar o comissionamento** com o Financeiro, pelo roteiro em [`docs/11-ROTEIRO-HOMOLOGACAO-COMISSOES.md`](docs/11-ROTEIRO-HOMOLOGACAO-COMISSOES.md). Enquanto os casos dourados do v1 não forem comparados, a F4 está concluída no código mas não validada contra a realidade.
+3. **Decidir o que ainda trava fase** (seção 6): dupla aprovação para reabertura de período, estorno retroativo e a decisão sobre líder receber sobre venda própria.
+4. **F7**: shadow mode sobre dados reais, que depende dos itens 2 e 3.
 
-Para a Trilha P eu preciso de acesso (ou de um dump anonimizado) ao banco e ao código do v1, para diagnosticar as queries lentas de verdade em vez de trabalhar por hipótese.
+Para a Trilha P eu continuo precisando de acesso (ou de um dump anonimizado) ao banco e ao código do v1, para diagnosticar as queries lentas de verdade em vez de trabalhar por hipótese. O seed volumétrico previsto na P2 ainda não existe.
