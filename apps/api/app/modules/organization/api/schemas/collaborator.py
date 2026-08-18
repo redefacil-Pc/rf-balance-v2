@@ -119,26 +119,6 @@ class CollaboratorDetailResponse(BaseModel):
     payment_key_masked: str | None
 
 
-class BankAccountRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-    bank_code: str = Field(min_length=1, max_length=5)
-    bank_name: str = Field(min_length=2, max_length=120)
-    branch: str = Field(min_length=1, max_length=10)
-    account_number: str | None = Field(default=None, max_length=40)
-    account_type: str = Field(pattern="^(CORRENTE|POUPANCA|PAGAMENTO)$")
-
-
-class BankAccountResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    id: int
-    bank_code: str
-    bank_name: str
-    branch: str
-    account_masked: str
-    account_type: str
-    is_active: bool
-
-
 class CollaboratorPageResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 

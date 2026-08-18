@@ -7,7 +7,6 @@ import { useState } from 'react';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { CollaboratorFilters } from '@/features/collaborators/components/CollaboratorFilters';
 import { CollaboratorDeactivateModal } from '@/features/collaborators/components/CollaboratorDeactivateModal';
-import { CollaboratorBankAccountsModal } from '@/features/collaborators/components/CollaboratorBankAccountsModal';
 import { CollaboratorAccountModal } from '@/features/collaborators/components/CollaboratorAccountModal';
 import { CollaboratorEditModal } from '@/features/collaborators/components/CollaboratorEditModal';
 import { CollaboratorFormModal } from '@/features/collaborators/components/CollaboratorFormModal';
@@ -45,7 +44,6 @@ export function CollaboratorsPage() {
   const [editing, setEditing] = useState<Collaborator | null>(null);
   const [deactivating, setDeactivating] = useState<Collaborator | null>(null);
   const [managingFunctions, setManagingFunctions] = useState<Collaborator | null>(null);
-  const [managingAccounts, setManagingAccounts] = useState<Collaborator | null>(null);
   const [managingAccess, setManagingAccess] = useState<Collaborator | null>(null);
 
   const consulta = useCollaborators(filtros);
@@ -89,7 +87,6 @@ export function CollaboratorsPage() {
             onEditar={setEditing}
             onInativar={setDeactivating}
             onFuncoes={setManagingFunctions}
-            onContas={setManagingAccounts}
             onAcesso={setManagingAccess}
           />
         </EstadoDaLista>
@@ -122,7 +119,6 @@ export function CollaboratorsPage() {
         podeEscrever={pode('collaborators:write')}
         onFechar={() => setManagingFunctions(null)}
       />
-      <CollaboratorBankAccountsModal collaborator={managingAccounts} onClose={() => setManagingAccounts(null)} />
       <CollaboratorAccountModal collaborator={managingAccess} onClose={() => setManagingAccess(null)} />
     </Stack>
   );

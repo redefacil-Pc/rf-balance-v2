@@ -12,7 +12,6 @@ from app.modules.identity.domain.entities.user import User
 from app.modules.organization.api.dependencies import (
     get_activate_collaborator_handler,
     get_add_function_handler,
-    get_bank_account_handler,
     get_close_function_handler,
     get_create_collaborator_handler,
     get_deactivate_collaborator_handler,
@@ -24,8 +23,6 @@ from app.modules.organization.api.dependencies import (
 from app.modules.organization.api.schemas.collaborator import (
     ActivateCollaboratorRequest,
     AddFunctionRequest,
-    BankAccountRequest,
-    BankAccountResponse,
     CloseFunctionRequest,
     CollaboratorDetailResponse,
     CollaboratorPageResponse,
@@ -36,7 +33,6 @@ from app.modules.organization.api.schemas.collaborator import (
     LinkAccountRequest,
     UpdateCollaboratorRequest,
 )
-from app.modules.organization.api.schemas.company import SetCatalogStatusRequest
 from app.modules.organization.application.commands.create_collaborator import (
     ChavePixSolicitada,
     CreateCollaborator,
@@ -52,10 +48,6 @@ from app.modules.organization.application.commands.deactivate_collaborator impor
 from app.modules.organization.application.commands.link_collaborator_account import (
     LinkCollaboratorAccount,
     LinkCollaboratorAccountHandler,
-)
-from app.modules.organization.application.commands.manage_bank_account import (
-    BankAccountHandler,
-    SaveBankAccount,
 )
 from app.modules.organization.application.commands.manage_collaborator_functions import (
     AddCollaboratorFunction,
@@ -78,9 +70,6 @@ from app.modules.organization.application.queries.list_collaborators import (
 from app.modules.organization.domain.errors import RecursoNaoEncontradoError
 from app.modules.organization.domain.value_objects.papel_de_colaborador import (
     PapelDeColaborador,
-)
-from app.modules.organization.infrastructure.repositories.sql_bank_account_repository import (
-    SqlBankAccountRepository,
 )
 from app.modules.organization.infrastructure.repositories.sql_collaborator_repository import (
     FiltroDeColaboradores,
@@ -252,111 +241,6 @@ async def detalhes_de_edicao(
         user_id=modelo.user_id,
         payment_key_type=chave.key_type if chave else None,
         payment_key_masked=chave.key_masked if chave else None,
-    )
-
-
-@router.get("/{collaborator_id}/bank-accounts", response_model=list[BankAccountResponse])
-async def listar_contas_bancarias(
-    collaborator_id: int,
-    _ator: Annotated[User, Depends(require_permission("collaborators:read_pii"))],
-    uow: Uow,
-) -> list[BankAccountResponse]:
-    items = await SqlBankAccountRepository(uow.session).list_for_collaborator(collaborator_id)
-    return [
-        BankAccountResponse(
-            id=item.id,
-            bank_code=item.bank_code,
-            bank_name=item.bank_name,
-            branch=item.branch,
-            account_masked=item.account_masked,
-            account_type=item.account_type,
-            is_active=item.is_active,
-        )
-        for item in items
-    ]
-
-
-@router.post(
-    "/{collaborator_id}/bank-accounts",
-    response_model=dict[str, int],
-    status_code=status.HTTP_201_CREATED,
-)
-async def criar_conta_bancaria(
-    collaborator_id: int,
-    body: BankAccountRequest,
-    request: Request,
-    ator: Annotated[
-        User, Depends(require_permission("collaborators:write", "collaborators:read_pii"))
-    ],
-    handler: Annotated[BankAccountHandler, Depends(get_bank_account_handler)],
-) -> dict[str, int]:
-    account_id = await handler.save(
-        SaveBankAccount(
-            collaborator_id=collaborator_id,
-            account_id=None,
-            bank_code=body.bank_code,
-            bank_name=body.bank_name,
-            branch=body.branch,
-            account_number=body.account_number,
-            account_type=body.account_type,
-            actor=ator.id,
-            correlation_id=getattr(request.state, "correlation_id", None),
-        )
-    )
-    return {"id": account_id}
-
-
-@router.put(
-    "/{collaborator_id}/bank-accounts/{account_id}",
-    response_model=None,
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def alterar_conta_bancaria(
-    collaborator_id: int,
-    account_id: int,
-    body: BankAccountRequest,
-    request: Request,
-    ator: Annotated[
-        User, Depends(require_permission("collaborators:write", "collaborators:read_pii"))
-    ],
-    handler: Annotated[BankAccountHandler, Depends(get_bank_account_handler)],
-) -> None:
-    await handler.save(
-        SaveBankAccount(
-            collaborator_id=collaborator_id,
-            account_id=account_id,
-            bank_code=body.bank_code,
-            bank_name=body.bank_name,
-            branch=body.branch,
-            account_number=body.account_number,
-            account_type=body.account_type,
-            actor=ator.id,
-            correlation_id=getattr(request.state, "correlation_id", None),
-        )
-    )
-
-
-@router.put(
-    "/{collaborator_id}/bank-accounts/{account_id}/status",
-    response_model=None,
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def situacao_conta_bancaria(
-    collaborator_id: int,
-    account_id: int,
-    body: SetCatalogStatusRequest,
-    request: Request,
-    ator: Annotated[
-        User, Depends(require_permission("collaborators:write", "collaborators:read_pii"))
-    ],
-    handler: Annotated[BankAccountHandler, Depends(get_bank_account_handler)],
-) -> None:
-    await handler.set_status(
-        collaborator_id=collaborator_id,
-        account_id=account_id,
-        active=body.is_active,
-        actor=ator.id,
-        correlation_id=getattr(request.state, "correlation_id", None),
     )
 
 

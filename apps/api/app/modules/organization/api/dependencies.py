@@ -18,11 +18,13 @@ from app.modules.organization.application.commands.deactivate_collaborator impor
 from app.modules.organization.application.commands.link_collaborator_account import (
     LinkCollaboratorAccountHandler,
 )
-from app.modules.organization.application.commands.manage_bank_account import BankAccountHandler
 from app.modules.organization.application.commands.manage_catalog import CatalogHandler
 from app.modules.organization.application.commands.manage_collaborator_functions import (
     AddCollaboratorFunctionHandler,
     CloseCollaboratorFunctionHandler,
+)
+from app.modules.organization.application.commands.manage_receiving_accounts import (
+    ReceivingAccountManager,
 )
 from app.modules.organization.application.commands.update_collaborator import (
     UpdateCollaboratorHandler,
@@ -32,9 +34,6 @@ from app.modules.organization.application.queries.list_collaborator_functions im
 )
 from app.modules.organization.application.queries.list_collaborators import (
     ListCollaboratorsHandler,
-)
-from app.modules.organization.infrastructure.repositories.sql_bank_account_repository import (
-    SqlBankAccountRepository,
 )
 from app.modules.organization.infrastructure.repositories.sql_collaborator_repository import (
     SqlCollaboratorRepository,
@@ -154,11 +153,8 @@ def get_catalog_handler(request: Request, uow: Uow) -> CatalogHandler:
     )
 
 
-def get_bank_account_handler(request: Request, uow: Uow) -> BankAccountHandler:
-    return BankAccountHandler(
+def get_receiving_account_manager(request: Request, uow: Uow) -> ReceivingAccountManager:
+    return ReceivingAccountManager(
         uow=uow,
-        accounts=SqlBankAccountRepository(uow.session),
-        collaborators=SqlCollaboratorRepository(uow.session),
-        cipher=request.app.state.pii_cipher,
         audit=SqlAuditRecorder(uow.session, request.app.state.clock),
     )
