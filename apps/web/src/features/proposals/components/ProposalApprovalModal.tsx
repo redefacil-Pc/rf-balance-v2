@@ -4,9 +4,7 @@ import {
   Badge,
   Button,
   Divider,
-  FileButton,
   Group,
-  List,
   Modal,
   Stack,
   Table,
@@ -15,17 +13,14 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconAlertTriangle, IconCalculator, IconCash, IconDownload, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCalculator, IconCash, IconDownload } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { useAuth } from '@/app/providers/AuthProvider';
 import { ReceiptCreateModal } from '@/features/proposals/components/ReceiptCreateModal';
 import { CommissionExplanationModal } from '@/features/receipts/components/CommissionExplanationModal';
 import { useDecideProposal } from '@/features/proposals/mutations/useDecideProposal';
-import { useRemoveAttachment } from '@/features/proposals/mutations/useRemoveAttachment';
 import { useSubmitProposal } from '@/features/proposals/mutations/useSubmitProposal';
-import { useUploadAttachment } from '@/features/proposals/mutations/useUploadAttachment';
-import { useProposalAttachments } from '@/features/proposals/queries/useProposalAttachments';
 import { useProposal } from '@/features/proposals/queries/useProposal';
 import { useProposalReceipts } from '@/features/proposals/queries/useProposalReceipts';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
@@ -39,14 +34,6 @@ import {
 interface Props {
   proposta: Proposal | null;
   onFechar: () => void;
-}
-
-const TIPOS_ACEITOS = 'application/pdf,image/jpeg,image/png';
-
-function formatarTamanho(bytes: number): string {
-  return bytes < 1024 * 1024
-    ? `${(bytes / 1024).toFixed(0)} KB`
-    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function somarValores(valores: string[]): string {
@@ -81,13 +68,10 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
     { receiptId: number | null; proposalId: number | null } | null
   >(null);
 
-  const anexos = useProposalAttachments(proposta?.id ?? null);
   const detalhe = useProposal(proposta?.id ?? null);
   const recebimentos = useProposalReceipts(proposta?.id ?? null);
   const enviar = useSubmitProposal();
   const decidir = useDecideProposal();
-  const anexar = useUploadAttachment();
-  const remover = useRemoveAttachment();
 
   const fechar = () => {
     setDevolvendo(false);
@@ -110,7 +94,9 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
   const declarados = (recebimentos.data?.items ?? []).filter(
     (item) => item.status !== 'REJECTED' && item.net_amount !== '0.00',
   );
-  const temConteudoParaEnviar = (anexos.data ?? []).length > 0 || declarados.length > 0;
+  // a regra "sem comprovante não envia" mora no domínio; aqui a tela apenas
+  // antecipa o motivo, em vez de deixar o operador descobrir pelo 422
+  const temValorDeclarado = declarados.length > 0;
   const totalDeclarado = somarValores(declarados.map((item) => item.net_amount));
 
   const enviarAoFinanceiro = () => {
@@ -164,14 +150,7 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
     );
   };
 
-  const enviarArquivo = (arquivo: File | null) => {
-    if (!arquivo) {
-      return;
-    }
-    anexar.mutate({ proposalId: proposta.id, file: arquivo });
-  };
-
-  const erro = enviar.error ?? decidir.error ?? anexar.error ?? remover.error ?? null;
+  const erro = enviar.error ?? decidir.error ?? null;
 
   return (
     <Modal
@@ -200,70 +179,6 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
             {ROTULO_DA_APROVACAO[proposta.approval_status]}
           </Badge>
         </Group>
-
-        <Divider label="Documentos da operação" labelPosition="left" />
-
-        <EstadoDaLista
-          carregando={anexos.isPending}
-          erro={anexos.error ?? null}
-          vazio={(anexos.data ?? []).length === 0}
-          mensagemVazio="Nenhum documento anexado."
-        >
-          <List spacing="xs" size="sm">
-            {(anexos.data ?? []).map((anexo) => (
-              <List.Item key={anexo.id}>
-                <Group justify="space-between" wrap="nowrap">
-                  <Text size="sm" truncate>
-                    {anexo.file_name}{' '}
-                    <Text span size="xs" c="dimmed">
-                      ({formatarTamanho(anexo.size_bytes)})
-                    </Text>
-                  </Text>
-                  <Group gap={4} wrap="nowrap">
-                    <ActionIcon
-                      component="a"
-                      href={`/api/v1/proposals/${proposta.id}/attachments/${anexo.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      variant="subtle"
-                      aria-label={`Baixar ${anexo.file_name}`}
-                    >
-                      <IconDownload size={16} />
-                    </ActionIcon>
-                    {editavel && podeEscrever && (
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        aria-label={`Remover ${anexo.file_name}`}
-                        loading={remover.isPending}
-                        onClick={() =>
-                          remover.mutate({ proposalId: proposta.id, attachmentId: anexo.id })
-                        }
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    )}
-                  </Group>
-                </Group>
-              </List.Item>
-            ))}
-          </List>
-        </EstadoDaLista>
-
-        {editavel && podeEscrever && (
-          <FileButton onChange={enviarArquivo} accept={TIPOS_ACEITOS}>
-            {(props) => (
-              <Button
-                {...props}
-                variant="default"
-                leftSection={<IconUpload size={16} />}
-                loading={anexar.isPending}
-              >
-                Anexar documento
-              </Button>
-            )}
-          </FileButton>
-        )}
 
         <Divider label="Valores recebidos" labelPosition="left" />
 
@@ -363,8 +278,8 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
               <Button
                 onClick={enviarAoFinanceiro}
                 loading={enviar.isPending}
-                disabled={!temConteudoParaEnviar}
-                title={!temConteudoParaEnviar ? 'Declare um valor recebido ou anexe um documento para enviar' : undefined}
+                disabled={!temValorDeclarado}
+                title={!temValorDeclarado ? 'Declare ao menos um valor recebido para enviar ao financeiro' : undefined}
               >
                 Enviar para aprovação
               </Button>
