@@ -68,10 +68,20 @@ def test_usuario_inicial_aponta_para_papel_existente(inicial: UsuarioInicial) ->
     assert inicial.papel in PAPEIS
 
 
-def test_seed_cria_por_padrao_os_perfis_do_fluxo_de_proposta() -> None:
-    """Só nascem sozinhos os três que o fluxo exige para funcionar."""
+def test_so_o_administrador_nasce_por_padrao() -> None:
+    """Ambiente novo começa vazio: uma conta, e o resto se cadastra pela tela.
+
+    O administrador é a única exceção porque sem ele ninguém entra para criar as
+    demais. Financeiro e Operacional continuam existindo no seed, mas sob
+    demanda — quem quer um ambiente pronto define a senha correspondente.
+
+    Consequência conhecida e aceita: só com o administrador não se lança
+    recebimento, porque a rota exige perfil Financeiro, ou Operacional com
+    função FINALIZACAO vigente. Criar essas contas é o primeiro passo do fluxo
+    real, não um contorno.
+    """
     automaticos = {u.papel for u in USUARIOS_INICIAIS if not u.sob_demanda}
-    assert automaticos == {"ADMIN", "FINANCEIRO", "OPERACIONAL"}
+    assert automaticos == {"ADMIN"}
 
 
 def test_seed_cobre_todo_papel_do_catalogo() -> None:

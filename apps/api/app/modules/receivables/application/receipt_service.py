@@ -84,7 +84,7 @@ class ReceiptListItem:
     proposal_approval_status: str
     reversal_reason: str | None
     reversed_amount: Decimal
-    receiving_account_label: str | None
+    receiving_account_label: str
 
 
 class ReceiptService:
@@ -120,7 +120,7 @@ class ReceiptService:
         business_date: date,
         payment_time: time | None,
         payment_method: str,
-        receiving_account_id: int | None,
+        receiving_account_id: int,
         reference: str | None,
         notes: str | None,
         file_name: str,
@@ -156,9 +156,7 @@ class ReceiptService:
         if not proposal.aceita_recebimento:
             raise FluxoDeRecebimentoInvalidoError(_motivo_da_recusa(proposal))
 
-        if receiving_account_id is not None and not await self._contas.esta_disponivel(
-            receiving_account_id
-        ):
+        if not await self._contas.esta_disponivel(receiving_account_id):
             raise RecebimentoInvalidoError("Selecione uma conta de recebimento ativa.")
 
         payment_datetime = self._validate_payment_datetime(business_date, payment_time)
@@ -449,9 +447,7 @@ class ReceiptService:
             )
             .join(ProposalModel, ProposalModel.id == ReceiptModel.proposal_id)
             .join(UserModel, UserModel.id == ReceiptModel.created_by)
-            # outer: recebimento anterior ao catálogo não tem conta, e continua
-            # tendo que aparecer na lista
-            .outerjoin(
+            .join(
                 ReceivingAccountModel,
                 ReceivingAccountModel.id == ReceiptModel.receiving_account_id,
             )
@@ -471,7 +467,7 @@ class ReceiptService:
                 proposal_approval_status=str(row[3]),
                 reversal_reason=row[4],
                 reversed_amount=Decimal(row[5]),
-                receiving_account_label=row[6],
+                receiving_account_label=str(row[6]),
             )
             for row in rows
         ]

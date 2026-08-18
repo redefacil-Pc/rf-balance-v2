@@ -64,14 +64,14 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
   const valorValido = decimal !== '' && Number(decimal) > 0;
 
   const submit = async () => {
-    if (!valorValido || !method || !proof) return;
+    if (!valorValido || !method || !receivingAccountId || !proof) return;
     await create.mutateAsync({
       proposalId,
       amount: decimal,
       businessDate,
       paymentTime,
       paymentMethod: method,
-      receivingAccountId: receivingAccountId ? Number(receivingAccountId) : null,
+      receivingAccountId: Number(receivingAccountId),
       reference,
       notes,
       proof,
@@ -129,9 +129,13 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
           />
           <Select
             label="Conta que recebeu"
-            placeholder={contas.data?.length === 0 ? 'Nenhuma conta cadastrada' : 'Selecione'}
+            withAsterisk
+            placeholder={
+              contas.data?.length === 0
+                ? 'Cadastre uma conta em Contas de banco'
+                : 'Selecione'
+            }
             searchable
-            clearable
             disabled={contas.isPending || contas.data?.length === 0}
             value={receivingAccountId}
             onChange={setReceivingAccountId}
@@ -172,7 +176,7 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
           <Button
             onClick={() => void submit()}
             loading={create.isPending}
-            disabled={!valorValido || !businessDate || !paymentTime || !method || !proof}
+            disabled={!valorValido || !businessDate || !paymentTime || !method || !receivingAccountId || !proof}
           >
             Declarar recebimento
           </Button>

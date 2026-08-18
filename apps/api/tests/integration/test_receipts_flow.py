@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from httpx import AsyncClient, Response
@@ -47,6 +47,11 @@ COMISSAO = "1000.00"
 
 
 class Api:
+    #: conta de recebimento da rodada, criada pelo fixture `conta_de_recebimento`.
+    #: Declarar exige conta, e repetir a criação em cada teste só acrescentaria
+    #: ruído ao que cada um realmente verifica.
+    conta_padrao: ClassVar[int] = 0
+
     def __init__(self, cliente: AsyncClient) -> None:
         self._cliente = cliente
 
@@ -81,9 +86,12 @@ class Api:
         content_type: str = "application/pdf",
     ) -> Response:
         """Declara um valor recebido na proposta, como faz a Finalização."""
-        corpo = {"amount": valor, "business_date": data, "payment_method": meio}
-        if conta is not None:
-            corpo["receiving_account_id"] = str(conta)
+        corpo = {
+            "amount": valor,
+            "business_date": data,
+            "payment_method": meio,
+            "receiving_account_id": str(conta if conta is not None else self.conta_padrao),
+        }
         return await self._cliente.post(
             f"/api/v1/proposals/{proposal_id}/receipts",
             data=corpo,
@@ -109,6 +117,14 @@ async def _sessao(
         entrou = await cliente.post("/api/v1/auth/login", json={"email": email, "password": senha})
         assert entrou.status_code == 200, entrou.text
         yield Api(cliente)
+
+
+@pytest.fixture(autouse=True)
+async def conta_de_recebimento(admin: Api) -> int:
+    criada = await admin.post("/api/v1/receiving-accounts", {"label": "Conta do teste (SANTANDER)"})
+    assert criada.status_code == 201, criada.text
+    Api.conta_padrao = int(criada.json()["id"])
+    return Api.conta_padrao
 
 
 @pytest.fixture

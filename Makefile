@@ -55,11 +55,11 @@ downgrade: ## desfaz a última migração
 reset-dry-run: ## mostra o que o reset apagaria, sem apagar nada
 	$(API) python -m app.platform.db.reset_operational_data
 
-reset: ## zera os dados operacionais, reinicia os ids em 1 e recria as contas mínimas
+reset: ## zera os dados operacionais, reinicia os ids em 1 e recria o administrador
 	$(API) python -m app.platform.db.reset_operational_data --sim
 	$(API) python -m app.platform.db.seed
 
-seed: ## cria permissões, papéis e as contas mínimas de operação
+seed: ## cria permissões, papéis e o administrador
 	$(API) python -m app.platform.db.seed
 
 seed-demo: ## massa de teste: uma pessoa por perfil e função (idempotente)

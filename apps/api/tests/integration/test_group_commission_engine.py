@@ -16,6 +16,9 @@ from app.modules.organization.infrastructure.models.collaborator_role_model impo
     CollaboratorRoleModel,
 )
 from app.modules.organization.infrastructure.models.company_model import CompanyModel
+from app.modules.organization.infrastructure.models.receiving_account_model import (
+    ReceivingAccountModel,
+)
 from app.modules.receivables.infrastructure.models.receipt_model import (
     ReceiptModel,
     ReceiptReversalModel,
@@ -135,12 +138,18 @@ async def test_motores_automaticos_geram_creditos_e_debitos_explicaveis() -> Non
                 version=1,
             )
             session.add(proposal)
+            # a conta que recebeu é obrigatória no recebimento
+            conta = ReceivingAccountModel(
+                label="Conta do motor de grupo (SANTANDER)", display_order=1, is_active=True
+            )
+            session.add(conta)
             await session.flush()
             receipt = ReceiptModel(
                 proposal_id=proposal.id,
                 amount=Decimal("12000.00"),
                 business_date=date(2026, 8, 14),
                 payment_method="PIX",
+                receiving_account_id=conta.id,
                 status="APPROVED",
                 proof_file_name="proof.pdf",
                 proof_content_type="application/pdf",

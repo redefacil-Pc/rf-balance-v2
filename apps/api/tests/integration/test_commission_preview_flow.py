@@ -87,6 +87,13 @@ async def test_previa_do_consultor_padrao_bate_com_a_comissao_efetivamente_credi
         },
         headers=csrf,
     )
+    conta = await cliente.post(
+        "/api/v1/receiving-accounts",
+        json={"label": "Conta da prévia (SANTANDER)"},
+        headers=csrf,
+    )
+    assert conta.status_code == 201, conta.text
+
     proposta = await cliente.post(
         "/api/v1/proposals",
         json={
@@ -119,6 +126,7 @@ async def test_previa_do_consultor_padrao_bate_com_a_comissao_efetivamente_credi
                 "amount": "3000.00",
                 "business_date": "2026-08-12",
                 "payment_method": "PIX",
+                "receiving_account_id": str(conta.json()["id"]),
             },
             files={"proof": ("c.pdf", PDF, "application/pdf")},
             headers={**csrf_fin, "Idempotency-Key": "previa-padrao"},

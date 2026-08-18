@@ -10,7 +10,7 @@ export interface CreateReceiptInput {
   businessDate: string;
   paymentTime: string;
   paymentMethod: string;
-  receivingAccountId: number | null;
+  receivingAccountId: number;
   reference: string;
   notes: string;
   proof: File;
@@ -26,10 +26,7 @@ export function useCreateReceipt() {
       body.set('business_date', input.businessDate);
       if (input.paymentTime) body.set('payment_time', input.paymentTime);
       body.set('payment_method', input.paymentMethod);
-      // omitido quando não escolhido: enviar vazio viraria erro de tipo no Form
-      if (input.receivingAccountId !== null) {
-        body.set('receiving_account_id', String(input.receivingAccountId));
-      }
+      body.set('receiving_account_id', String(input.receivingAccountId));
       body.set('reference', input.reference);
       body.set('notes', input.notes);
       body.set('proof', input.proof);

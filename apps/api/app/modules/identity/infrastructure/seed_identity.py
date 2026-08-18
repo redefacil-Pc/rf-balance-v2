@@ -71,9 +71,25 @@ class UsuarioInicial:
 
 
 USUARIOS_INICIAIS: tuple[UsuarioInicial, ...] = (
+    # a única conta que nasce sempre: sem ela ninguém entra para criar as outras
     UsuarioInicial("ADMIN", EMAIL_ADMIN_PADRAO, "Administrador", "ADMIN"),
-    UsuarioInicial("FINANCEIRO", EMAIL_FINANCEIRO_PADRAO, "Financeiro", "FINANCEIRO"),
-    UsuarioInicial("OPERACIONAL", EMAIL_OPERACIONAL_PADRAO, "Operacional", "OPERACIONAL"),
+    # as demais são sob demanda. O caminho normal é o administrador cadastrá-las
+    # pela tela, que é o fluxo real; a variável de senha existe para quem precisa
+    # de um ambiente pronto sem passos manuais
+    UsuarioInicial(
+        "FINANCEIRO",
+        EMAIL_FINANCEIRO_PADRAO,
+        "Financeiro",
+        "FINANCEIRO",
+        sob_demanda=True,
+    ),
+    UsuarioInicial(
+        "OPERACIONAL",
+        EMAIL_OPERACIONAL_PADRAO,
+        "Operacional",
+        "OPERACIONAL",
+        sob_demanda=True,
+    ),
     UsuarioInicial(
         "LIDERANCA",
         EMAIL_LIDERANCA_PADRAO,

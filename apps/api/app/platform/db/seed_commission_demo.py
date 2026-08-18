@@ -57,6 +57,9 @@ from app.modules.organization.domain.value_objects.papel_de_colaborador import (
     RegimeTributario,
 )
 from app.modules.organization.infrastructure.models.collaborator_model import CollaboratorModel
+from app.modules.organization.infrastructure.models.receiving_account_model import (
+    ReceivingAccountModel,
+)
 from app.modules.organization.infrastructure.repositories.sql_collaborator_repository import (
     SqlCollaboratorRepository,
 )
@@ -105,9 +108,24 @@ class Populador:
             self.settings.storage.object_storage_bucket,
         )
         self.today = self.clock.business_date()
+        self.receiving_account_id = 0
 
     async def close(self) -> None:
         await self.engine.dispose()
+
+    async def conta_de_recebimento(self) -> int:
+        """Conta usada pela massa. Idempotente: reaproveita a que já existir."""
+        rotulo = "Conta de homologação (SEED)"
+        async with self.factory() as session:
+            existente = await session.scalar(
+                select(ReceivingAccountModel.id).where(ReceivingAccountModel.label == rotulo)
+            )
+            if existente is not None:
+                return int(existente)
+            conta = ReceivingAccountModel(label=rotulo, display_order=999, is_active=True)
+            session.add(conta)
+            await session.commit()
+            return int(conta.id)
 
     async def context(self) -> tuple[Contexto, int]:
         async with self.factory() as session:
@@ -256,7 +274,7 @@ class Populador:
                 business_date=self.today,
                 payment_time=None,
                 payment_method="PIX",
-                receiving_account_id=None,
+                receiving_account_id=self.receiving_account_id,
                 reference=external_id,
                 notes="Massa local de homologação do comissionamento",
                 file_name=f"{external_id}.pdf",
@@ -479,6 +497,8 @@ async def execute() -> int:
         print("seed de comissionamento não roda em produção", file=sys.stderr)
         return 1
     try:
+        # a conta é obrigatória no lançamento; a massa cria a sua e a reaproveita
+        populator.receiving_account_id = await populator.conta_de_recebimento()
         context, scaled_id = await populator.context()
         scenarios = (
             (context.consultant_id, "TPS-24-99", "Teste faixa TPS 24,99", "10000", "24.99", "2499"),

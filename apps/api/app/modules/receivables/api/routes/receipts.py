@@ -129,9 +129,12 @@ async def create_receipt(
     amount: Annotated[Decimal, Form(gt=0, max_digits=18, decimal_places=2)],
     business_date: Annotated[date, Form()],
     payment_method: Annotated[str, Form(min_length=2, max_length=30)],
+    # obrigatória: o comprovante já diz de onde o dinheiro veio, e o
+    # recebimento tem que dizer onde caiu — senão o relatório por conta nasce
+    # incompleto sem ninguém perceber
+    receiving_account_id: Annotated[int, Form()],
     proof: Annotated[UploadFile, File()],
     payment_time: Annotated[time | None, Form()] = None,
-    receiving_account_id: Annotated[int | None, Form()] = None,
     reference: Annotated[str | None, Form(max_length=100)] = None,
     notes: Annotated[str | None, Form(max_length=255)] = None,
 ) -> ReceiptWriteResponse:

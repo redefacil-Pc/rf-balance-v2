@@ -223,12 +223,18 @@ async def test_usuario_colaborador_proposta_comprovante_e_aprovacao(
         # A Finalização declara o valor recebido **antes** de enviar: é
         # justamente isso que o Financeiro vai conferir no extrato.
         assert "receipts:write" in login.json()["permissions"]
+        conta = await api.post(
+            "/api/v1/receiving-accounts", {"label": "Conta do fluxo integrado (SANTANDER)"}
+        )
+        assert conta.status_code == 201, conta.text
+        conta_id = str(conta.json()["id"])
         receipt = await operational_client.post(
             f"/api/v1/proposals/{proposal_id}/receipts",
             data={
                 "amount": "100.00",
                 "business_date": "2026-08-13",
                 "payment_method": "PIX",
+                "receiving_account_id": conta_id,
                 "reference": "E2E-001",
             },
             files={"proof": ("recebimento.pdf", b"%PDF-1.4 receipt", "application/pdf")},
@@ -243,6 +249,7 @@ async def test_usuario_colaborador_proposta_comprovante_e_aprovacao(
                 "amount": "100.00",
                 "business_date": "2026-08-13",
                 "payment_method": "PIX",
+                "receiving_account_id": conta_id,
                 "reference": "E2E-001",
             },
             files={"proof": ("recebimento.pdf", b"%PDF-1.4 receipt", "application/pdf")},
