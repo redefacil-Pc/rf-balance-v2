@@ -31,5 +31,11 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
     exclude: ['tests/e2e/**'],
+    // Teste de componente aqui monta o provider do Mantine e navega por Select
+    // e upload; isolado leva ~1,5 s, mas sob a carga da suíte cheia passa dos
+    // 5 s padrão. O limite existe para pegar teste travado, não para medir a
+    // máquina — 20 s continua acusando travamento sem reprovar quem só ficou
+    // lento porque a suíte cresceu.
+    testTimeout: 20_000,
   },
 });

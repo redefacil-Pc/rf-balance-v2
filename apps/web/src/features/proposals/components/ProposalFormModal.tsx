@@ -13,6 +13,7 @@ import {
   type ProposalForm,
   type ProposalFormEntrada,
 } from '@/features/proposals/schemas/proposal-schema';
+import { PagamentoNoCadastro, usePagamentoNoCadastro } from '@/features/proposals/components/PagamentoNoCadastro';
 import { PreviaDeComissao } from '@/features/proposals/components/PreviaDeComissao';
 import { useCommissionPreview } from '@/features/proposals/queries/useCommissionPreview';
 import { CampoMascarado } from '@/shared/components/CampoMascarado';
@@ -50,6 +51,7 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
     'CONSULTOR',
     'CONSULTOR_MEI_ESCALONADO',
   ]);
+  const pagamento = usePagamentoNoCadastro();
   const bkos = useColaboradoresPorPapel('BKO');
   const finalizadores = useColaboradoresPorPapel('FINALIZACAO');
 
@@ -87,20 +89,55 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
       }
       return;
     }
-    try {
-      for (const arquivo of arquivos) await anexar.mutateAsync({ proposalId: resultado.id, file: arquivo });
+
+    const limpar = () => {
+      reset(VAZIO);
+      setArquivos([]);
+      pagamento.limpar();
+      onFechar();
+    };
+
+    // A proposta já existe; o recebimento é uma segunda chamada. Se ela falhar,
+    // a proposta não é desfeita — dizer isso e apontar onde completar é melhor
+    // que um sucesso que esconde metade do trabalho.
+    if (pagamento.preenchido) {
+      try {
+        await pagamento.declarar(resultado.id);
+      } catch (erro) {
         notifications.show({
-          color: 'positivo',
-          title: 'Proposta cadastrada',
-          message: `Comissão da empresa: ${formatarMoeda(resultado.company_commission_amount)}`,
+          color: 'yellow',
+          title: 'Proposta criada, mas o pagamento não foi declarado',
+          message:
+            erro instanceof ApiError
+              ? erro.problem.detail
+              : 'Abra a proposta e declare o recebimento para concluir.',
+          autoClose: false,
         });
-        reset(VAZIO);
-        setArquivos([]);
-        onFechar();
-    } catch {
-      notifications.show({ color: 'yellow', title: 'Proposta criada, mas faltou um comprovante', message: 'Abra a ação de comprovantes da proposta para tentar o envio novamente.' });
-      reset(VAZIO); setArquivos([]); onFechar();
+        limpar();
+        return;
+      }
     }
+
+    try {
+      for (const arquivo of arquivos) {
+        await anexar.mutateAsync({ proposalId: resultado.id, file: arquivo });
+      }
+    } catch {
+      notifications.show({
+        color: 'yellow',
+        title: 'Proposta criada, mas faltou um documento',
+        message: 'Abra a proposta para reenviar o anexo.',
+      });
+      limpar();
+      return;
+    }
+
+    notifications.show({
+      color: 'positivo',
+      title: 'Proposta cadastrada',
+      message: `Comissão da empresa: ${formatarMoeda(resultado.company_commission_amount)}`,
+    });
+    limpar();
   });
 
   const opcoes = (dados: { items: { id: number; full_name: string }[] } | undefined) =>
@@ -253,9 +290,11 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
             </Grid.Col>
           </Grid>
 
+          <PagamentoNoCadastro pagamento={pagamento} />
+
           <Stack gap="xs">
-            <Text size="sm" fw={500}>Comprovantes</Text>
-            <Text size="xs" c="dimmed">PDF, JPG ou PNG, até 10 MB por arquivo. Eles serão enviados após o cadastro da proposta.</Text>
+            <Text size="sm" fw={500}>Documentos da operação</Text>
+            <Text size="xs" c="dimmed">Opcional: contrato, proposta assinada e afins. O comprovante do pagamento vai no bloco acima.</Text>
             {arquivos.length > 0 && <List size="sm" icon={<IconPaperclip size={14} />}>{arquivos.map((arquivo, indice) => <List.Item key={`${arquivo.name}-${arquivo.size}`}><Group justify="space-between"><Text size="sm">{arquivo.name}</Text><Button variant="subtle" color="red" size="compact-xs" leftSection={<IconTrash size={13} />} onClick={() => setArquivos((atuais) => atuais.filter((_, i) => i !== indice))}>Remover</Button></Group></List.Item>)}</List>}
             <FileButton multiple accept="application/pdf,image/jpeg,image/png" onChange={(selecionados) => setArquivos((atuais) => [...atuais, ...selecionados].filter((arquivo) => arquivo.size <= 10 * 1024 * 1024))}>
               {(props) => <Button {...props} variant="default" leftSection={<IconUpload size={16} />} w="fit-content">Selecionar comprovantes</Button>}
@@ -271,7 +310,12 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
             <Button variant="default" onClick={onFechar}>
               Cancelar
             </Button>
-            <Button type="submit" loading={criar.isPending || anexar.isPending}>
+            <Button
+              type="submit"
+              loading={criar.isPending || anexar.isPending}
+              // bloco de pagamento pela metade não cadastra: ou completa, ou zera o valor
+              disabled={pagamento.preenchido && !pagamento.completo}
+            >
               Cadastrar
             </Button>
           </Group>

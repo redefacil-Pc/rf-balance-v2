@@ -31,6 +31,20 @@ describe('ReceiptCreateModal — valor', () => {
   it('mascara o valor digitado e envia a string decimal da API', async () => {
     let body: FormData | undefined;
     vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
+      if (String(url).includes('/receiving-accounts')) {
+        return Promise.resolve(
+          json([
+            {
+              id: 7,
+              label: 'Almeida Serviços LTDA (SANTANDER)',
+              display_order: 1,
+              is_active: true,
+              created_at: '2026-08-18T12:00:00Z',
+              updated_at: '2026-08-18T12:00:00Z',
+            },
+          ]),
+        );
+      }
       if (String(url).includes('/receipts') && init?.method === 'POST') {
         body = init.body as FormData;
         return Promise.resolve(json({ id: 1 }, 201));
@@ -48,6 +62,10 @@ describe('ReceiptCreateModal — valor', () => {
     const arquivo = new File([new Uint8Array([1, 2, 3])], 'comprovante.pdf', {
       type: 'application/pdf',
     });
+    // a conta que recebeu é obrigatória desde que o catálogo passou a existir
+    await user.click(screen.getByRole('textbox', { name: /conta que recebeu/i }));
+    await user.click(await screen.findByRole('option', { name: /almeida serviços/i }));
+
     // o FileButton do Mantine mantém o input escondido, sem label associada
     const entradaDeArquivo = document.querySelector<HTMLInputElement>('input[type="file"]');
     await user.upload(entradaDeArquivo as HTMLInputElement, arquivo);
