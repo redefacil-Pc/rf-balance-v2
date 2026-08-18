@@ -2,25 +2,25 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Code,
   Divider,
   Grid,
   Group,
   Modal,
   MultiSelect,
+  PasswordInput,
   Stack,
   Switch,
   Text,
   TextInput,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconKey } from '@tabler/icons-react';
+import { IconKey, IconLock } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import {
   useResetUserPassword,
-  useSetUserRoles,
-  useSetUserStatus,
   useUpdateUser,
 } from '@/features/users/mutations/useManageUser';
 import { useAccessRoles } from '@/features/users/queries/useUsers';
@@ -44,10 +44,10 @@ export function UserEditModal({ user, currentUserId, onClose }: Props) {
   const [email, setEmail] = useState('');
   const [roles, setRoles] = useState<string[]>([]);
   const [active, setActive] = useState(true);
+  const [password, setPassword] = useState('');
+  const [requireChange, setRequireChange] = useState(true);
   const accessRoles = useAccessRoles();
   const update = useUpdateUser();
-  const setUserRoles = useSetUserRoles();
-  const setStatus = useSetUserStatus();
   const resetPassword = useResetUserPassword();
 
   useEffect(() => {
@@ -55,25 +55,25 @@ export function UserEditModal({ user, currentUserId, onClose }: Props) {
     setEmail(user?.email ?? '');
     setRoles(user?.roles ?? []);
     setActive(user?.is_active ?? true);
+    setPassword('');
+    setRequireChange(true);
     update.reset();
-    setUserRoles.reset();
-    setStatus.reset();
     resetPassword.reset();
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!user) return null;
   const ownAccount = user.id === currentUserId;
-  const error = update.error ?? setUserRoles.error ?? setStatus.error ?? resetPassword.error;
+  const error = update.error ?? resetPassword.error;
 
   const save = async () => {
     try {
-      await update.mutateAsync({ id: user.id, full_name: name.trim(), email: email.trim() });
-      if (!ownAccount && roles.slice().sort().join() !== user.roles.slice().sort().join()) {
-        await setUserRoles.mutateAsync({ id: user.id, roles });
-      }
-      if (!ownAccount && active !== user.is_active) {
-        await setStatus.mutateAsync({ id: user.id, is_active: active });
-      }
+      await update.mutateAsync({
+        id: user.id,
+        full_name: name.trim(),
+        email: email.trim(),
+        roles: ownAccount ? undefined : roles,
+        is_active: ownAccount ? undefined : active,
+      });
       notifications.show({ color: 'positivo', title: 'Usuário atualizado', message: name.trim() });
       onClose();
     } catch {
@@ -82,17 +82,40 @@ export function UserEditModal({ user, currentUserId, onClose }: Props) {
   };
 
   const generatePassword = () => {
-    resetPassword.mutate(user.id, {
-      onSuccess: () =>
-        notifications.show({
-          color: 'yellow',
-          title: 'Senha provisória gerada',
-          message: 'As sessões abertas foram encerradas.',
-        }),
-    });
+    resetPassword.mutate(
+      { id: user.id },
+      {
+        onSuccess: () =>
+          notifications.show({
+            color: 'yellow',
+            title: 'Senha provisória gerada',
+            message: 'As sessões abertas foram encerradas.',
+          }),
+      },
+    );
   };
 
-  const pending = update.isPending || setUserRoles.isPending || setStatus.isPending;
+  const definePassword = () => {
+    resetPassword.mutate(
+      { id: user.id, password, require_change: requireChange },
+      {
+        onSuccess: () => {
+          setPassword('');
+          notifications.show({
+            color: 'positivo',
+            title: 'Senha definida',
+            message: 'As sessões abertas foram encerradas.',
+          });
+        },
+      },
+    );
+  };
+
+  // espelha `password_policy.TAMANHO_MINIMO`; o backend valida de novo — aqui é
+  // só para evitar o ida-e-volta óbvio
+  const passwordTooShort = password.length > 0 && password.length < 12;
+
+  const pending = update.isPending;
 
   return (
     <Modal
@@ -172,19 +195,49 @@ export function UserEditModal({ user, currentUserId, onClose }: Props) {
               </Badge>
             </Group>
           </Stack>
-          {!resetPassword.data && (
-            <Button
-              variant="default"
-              leftSection={<IconKey size={16} />}
-              loading={resetPassword.isPending}
-              onClick={generatePassword}
-            >
-              Gerar nova senha
-            </Button>
-          )}
         </Group>
 
-        {resetPassword.data && (
+        <Grid align="flex-end">
+          <Grid.Col span={{ base: 12, sm: 7 }}>
+            <PasswordInput
+              label="Definir uma senha"
+              description="Deixe em branco para o sistema gerar uma."
+              placeholder="Ao menos 12 caracteres"
+              value={password}
+              onChange={(event) => setPassword(event.currentTarget.value)}
+              error={passwordTooShort ? 'A senha deve ter ao menos 12 caracteres' : null}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, sm: 5 }}>
+            <Group gap="xs" wrap="nowrap">
+              <Button
+                leftSection={<IconLock size={16} />}
+                loading={resetPassword.isPending && password.length > 0}
+                disabled={password.length < 12}
+                onClick={definePassword}
+              >
+                Definir
+              </Button>
+              <Button
+                variant="default"
+                leftSection={<IconKey size={16} />}
+                loading={resetPassword.isPending && password.length === 0}
+                onClick={generatePassword}
+              >
+                Gerar
+              </Button>
+            </Group>
+          </Grid.Col>
+        </Grid>
+
+        <Checkbox
+          label="Exigir troca no próximo acesso"
+          description="Quem define a senha passa a conhecê-la. Desmarque apenas para conta de teste ou de serviço."
+          checked={requireChange}
+          onChange={(event) => setRequireChange(event.currentTarget.checked)}
+        />
+
+        {resetPassword.data?.temporary_password && (
           <Alert color="yellow" title="Senha provisória — exibida somente agora">
             <Stack gap="xs">
               <Text size="sm">Envie por um canal seguro. O usuário deverá alterá-la ao entrar.</Text>
@@ -192,12 +245,23 @@ export function UserEditModal({ user, currentUserId, onClose }: Props) {
                 <Code p="sm" style={{ flex: 1 }}>{resetPassword.data.temporary_password}</Code>
                 <Button
                   variant="default"
-                  onClick={() => void navigator.clipboard.writeText(resetPassword.data.temporary_password)}
+                  onClick={() =>
+                    void navigator.clipboard.writeText(
+                      resetPassword.data?.temporary_password ?? '',
+                    )
+                  }
                 >
                   Copiar
                 </Button>
               </Group>
             </Stack>
+          </Alert>
+        )}
+
+        {resetPassword.data && !resetPassword.data.temporary_password && (
+          <Alert color="positivo" title="Senha definida">
+            A senha que você informou já está valendo. Ela não é exibida de volta — quem a definiu
+            já a conhece.
           </Alert>
         )}
 

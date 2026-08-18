@@ -84,9 +84,7 @@ class GetUserHandler:
         return _montar(modelo, papeis, colaborador)
 
 
-def _montar(
-    modelo: UserModel, papeis: list[str], colaborador_id: int | None
-) -> UsuarioEmLista:
+def _montar(modelo: UserModel, papeis: list[str], colaborador_id: int | None) -> UsuarioEmLista:
     return UsuarioEmLista(
         id=modelo.id,
         email=modelo.email,

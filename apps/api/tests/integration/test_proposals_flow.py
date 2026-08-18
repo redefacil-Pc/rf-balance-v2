@@ -183,9 +183,7 @@ async def test_consultor_inexistente_e_rejeitado(api: Api) -> None:
     assert resposta.json()["type"].endswith("participante-invalido")
 
 
-async def test_valor_e_tps_fora_do_permitido_nao_passam_do_schema(
-    api: Api, consultor: int
-) -> None:
+async def test_valor_e_tps_fora_do_permitido_nao_passam_do_schema(api: Api, consultor: int) -> None:
     for invalido in ({"operation_amount": "0.00"}, {"tps_percentage": "101"}):
         corpo: dict[str, Any] = {
             "consultant_id": consultor,

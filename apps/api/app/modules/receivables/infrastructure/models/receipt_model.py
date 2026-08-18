@@ -25,6 +25,7 @@ class ReceiptModel(Base):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     business_date: Mapped[date] = mapped_column(Date, nullable=False)
+    payment_datetime: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     payment_method: Mapped[str] = mapped_column(String(30), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -48,12 +49,13 @@ class ReceiptModel(Base):
 class ReceiptReversalModel(Base):
     __tablename__ = "receipt_reversals"
     __table_args__ = (
+        Index("ix_receipt_reversals_receipt_id", "receipt_id"),
         Index("ix_receipt_reversals_proposal_id_created_at", "proposal_id", "created_at"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     receipt_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("receipts.id", ondelete="RESTRICT"), unique=True, nullable=False
+        BigInteger, ForeignKey("receipts.id", ondelete="RESTRICT"), nullable=False
     )
     proposal_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("proposals.id", ondelete="RESTRICT"), nullable=False

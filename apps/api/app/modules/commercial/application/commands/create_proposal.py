@@ -161,15 +161,32 @@ class CreateProposalHandler:
         if consultor is None:
             raise ParticipanteInvalidoError("Consultor não encontrado.")
         if not consultor.is_active:
+            raise ParticipanteInvalidoError("O consultor está inativo e não pode receber proposta.")
+
+        papeis_do_consultor = {
+            item.role
+            for item in await self._colaboradores.papeis_vigentes_em(
+                cmd.consultant_id, cmd.business_date
+            )
+        }
+        if not papeis_do_consultor.intersection({"CONSULTOR", "CONSULTOR_MEI_ESCALONADO"}):
             raise ParticipanteInvalidoError(
-                "O consultor está inativo e não pode receber proposta."
+                "O colaborador não possui função de consultor vigente na data do negócio."
             )
 
-        for papel, colaborador_id in (
-            ("BKO", cmd.bko_collaborator_id),
-            ("finalização", cmd.finalizer_collaborator_id),
+        for rotulo, papel, colaborador_id in (
+            ("BKO", "BKO", cmd.bko_collaborator_id),
+            ("finalização", "FINALIZACAO", cmd.finalizer_collaborator_id),
         ):
             if colaborador_id is None:
                 continue
-            if await self._colaboradores.buscar_por_id(colaborador_id) is None:
-                raise ParticipanteInvalidoError(f"Colaborador de {papel} não encontrado.")
+            colaborador = await self._colaboradores.buscar_por_id(colaborador_id)
+            if colaborador is None or not colaborador.is_active:
+                raise ParticipanteInvalidoError(
+                    f"Colaborador de {rotulo} não encontrado ou inativo."
+                )
+            papeis = await self._colaboradores.papeis_vigentes_em(colaborador_id, cmd.business_date)
+            if not any(item.role == papel for item in papeis):
+                raise ParticipanteInvalidoError(
+                    f"O colaborador não possui função de {rotulo} vigente na data do negócio."
+                )

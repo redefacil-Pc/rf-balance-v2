@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
+from app.modules.commercial.application.ports.receipt_recognizer import ReceiptRecognizer
 from app.modules.commercial.domain.errors import PropostaNaoEncontradaError
 from app.modules.commercial.infrastructure.repositories.sql_proposal_attachment_repository import (
     SqlProposalAttachmentRepository,
@@ -44,12 +45,14 @@ class SubmitProposalHandler:
         uow: UnitOfWork,
         propostas: SqlProposalRepository,
         anexos: SqlProposalAttachmentRepository,
+        recebimentos: ReceiptRecognizer,
         audit: AuditRecorder,
         clock: Clock,
     ) -> None:
         self._uow = uow
         self._propostas = propostas
         self._anexos = anexos
+        self._recebimentos = recebimentos
         self._audit = audit
         self._clock = clock
 
@@ -58,7 +61,9 @@ class SubmitProposalHandler:
         if proposta is None:
             raise PropostaNaoEncontradaError(f"Proposta {cmd.proposal_id} não encontrada.")
 
-        comprovantes = await self._anexos.contar(cmd.proposal_id)
+        anexos = await self._anexos.contar(cmd.proposal_id)
+        recebimentos = await self._recebimentos.contar_declarados(cmd.proposal_id)
+        comprovantes = anexos + recebimentos
         proposta.enviar_para_aprovacao(quantidade_de_comprovantes=comprovantes)
 
         await self._propostas.salvar(
@@ -75,7 +80,7 @@ class SubmitProposalHandler:
             aggregate_type="proposal",
             aggregate_id=str(cmd.proposal_id),
             correlation_id=cmd.correlation_id,
-            payload={"attachments": comprovantes},
+            payload={"attachments": anexos, "receipt_proofs": recebimentos},
         )
         await self._uow.commit()
 

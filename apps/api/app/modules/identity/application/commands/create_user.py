@@ -100,9 +100,7 @@ class CreateUserHandler:
         if cmd.colaborador is not None:
             criado = await self._collaborator_creator.execute(cmd.colaborador, commit=False)
             colaborador_id = criado.id
-            await self._collaborators.definir_conta(
-                collaborator_id=criado.id, user_id=modelo.id
-            )
+            await self._collaborators.definir_conta(collaborator_id=criado.id, user_id=modelo.id)
 
         self._audit.registrar(
             module=MODULO,

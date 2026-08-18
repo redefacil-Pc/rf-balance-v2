@@ -34,7 +34,7 @@ O ecossistema cobre os seguintes blocos:
 4. vínculos temporais entre consultores e líderes;
 5. cadastro e manutenção de propostas;
 6. recebimentos parciais, totais e estornos;
-7. cálculo de comissão de consultor MEI e CLT;
+7. cálculo de comissão de consultor MEI padrão e Consultor Escalonado;
 8. cálculo MEI Escalonado por produção e TPS;
 9. comissão de líder comercial;
 10. comissão de líder MEI geral por unidade;

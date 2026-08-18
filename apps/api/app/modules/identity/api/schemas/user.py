@@ -54,6 +54,8 @@ class UpdateUserRequest(BaseModel):
 
     email: str = Field(min_length=5, max_length=320)
     full_name: str = Field(min_length=3, max_length=200)
+    roles: list[str] | None = Field(default=None, min_length=1)
+    is_active: bool | None = None
 
 
 class SetRolesRequest(BaseModel):
@@ -103,12 +105,29 @@ class UserCreatedResponse(BaseModel):
     collaborator_id: int | None = None
 
 
+class PasswordResetRequest(BaseModel):
+    """Corpo opcional: sem ele, o sistema gera a senha."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    #: nulo gera uma provisória. Preenchida, passa pela política de senha —
+    #: o limite mínimo é validado no domínio, não aqui, para a regra morar num
+    #: lugar só
+    password: str | None = Field(default=None, max_length=128)
+    #: quem define a senha passa a conhecê-la; por isso a troca no próximo
+    #: acesso é o padrão
+    require_change: bool = True
+
+
 class PasswordResetResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: int
     email: str
-    temporary_password: str
+    #: só vem preenchida quando o sistema gerou. Senha escolhida por quem
+    #: administra não volta no corpo: quem a definiu já a conhece.
+    temporary_password: str | None
+    must_change_password: bool
 
 
 class RoleResponse(BaseModel):

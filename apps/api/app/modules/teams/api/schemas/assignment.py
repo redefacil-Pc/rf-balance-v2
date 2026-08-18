@@ -43,6 +43,19 @@ class LeaderAtDateResponse(BaseModel):
     end_date: date | None
 
 
+class ActiveTeamAssignmentResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    member_id: int
+    member_name: str
+    leader_id: int
+    leader_name: str
+    assignment_type: str
+    start_date: date
+    end_date: date | None
+
+
 class CloseAssignmentRequest(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     end_date: date

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { requisitar } from '@/shared/api/http-client';
 import type { ApiError } from '@/shared/api/problem-details';
-import type { ReceiptPage, ReceiptStatus } from '../types';
+import type { ReceiptPage, ReceiptStatus } from '@/shared/types/receipts';
 
 export const receiptKeys = { all: ['receipts'] as const };
 

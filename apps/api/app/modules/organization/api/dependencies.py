@@ -12,6 +12,7 @@ from app.modules.organization.application.commands.create_collaborator import (
 from app.modules.organization.application.commands.create_company import CreateCompanyHandler
 from app.modules.organization.application.commands.create_unit import CreateUnitHandler
 from app.modules.organization.application.commands.deactivate_collaborator import (
+    ActivateCollaboratorHandler,
     DeactivateCollaboratorHandler,
 )
 from app.modules.organization.application.commands.link_collaborator_account import (
@@ -81,6 +82,17 @@ def get_deactivate_collaborator_handler(
         uow=uow,
         colaboradores=SqlCollaboratorRepository(uow.session),
         vinculos=SqlTeamAssignmentRepository(uow.session),
+        audit=SqlAuditRecorder(uow.session, request.app.state.clock),
+        clock=request.app.state.clock,
+    )
+
+
+def get_activate_collaborator_handler(
+    request: Request, uow: Uow
+) -> ActivateCollaboratorHandler:
+    return ActivateCollaboratorHandler(
+        uow=uow,
+        colaboradores=SqlCollaboratorRepository(uow.session),
         audit=SqlAuditRecorder(uow.session, request.app.state.clock),
         clock=request.app.state.clock,
     )

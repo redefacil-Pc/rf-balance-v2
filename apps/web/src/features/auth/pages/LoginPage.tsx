@@ -10,15 +10,17 @@ import {
   Stack,
   Text,
   TextInput,
+  ThemeIcon,
   Title,
 } from '@mantine/core';
-import { IconAlertTriangle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconLock } from '@tabler/icons-react';
 import { useForm } from 'react-hook-form';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { useLogin } from '@/features/auth/mutations/useLogin';
 import { useCurrentUser } from '@/features/auth/queries/useCurrentUser';
 import { loginSchema, type LoginForm } from '@/features/auth/schemas/login-schema';
+import { ColorSchemeToggle } from '@/shared/components/ColorSchemeToggle';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -50,9 +52,23 @@ export function LoginPage() {
   });
 
   return (
-    <Center mih="100vh" bg="gray.0" p="md">
+    <Center mih="100vh" p="md" className="rf-auth-page">
+      <Box pos="absolute" top="md" right="md">
+        <ColorSchemeToggle />
+      </Box>
       <Box w="100%" maw={420}>
         <Stack gap="xs" mb="lg" ta="center">
+          <ThemeIcon
+            size={52}
+            radius="lg"
+            variant="gradient"
+            gradient={{ from: 'marca.5', to: 'marca.9', deg: 145 }}
+            mx="auto"
+            mb="xs"
+            aria-hidden="true"
+          >
+            <IconLock size={25} stroke={1.7} />
+          </ThemeIcon>
           <Title order={1} size="h2">
             RF Balance
           </Title>
@@ -61,7 +77,7 @@ export function LoginPage() {
           </Text>
         </Stack>
 
-        <Card withBorder shadow="sm" padding="lg" radius="md">
+        <Card withBorder padding="xl" className="rf-auth-card">
           <form onSubmit={enviar} noValidate>
             <Stack gap="md">
               {login.isError && (

@@ -51,9 +51,7 @@ def test_recusa_operacao_nao_positiva() -> None:
 
 def test_alterar_operacao_recalcula_comissao_e_saldo() -> None:
     proposta = nova()
-    proposta.alterar_operacao(
-        operation_amount=Dinheiro.de("20000.00"), tps=PercentualTps.de("5")
-    )
+    proposta.alterar_operacao(operation_amount=Dinheiro.de("20000.00"), tps=PercentualTps.de("5"))
     assert proposta.company_commission_amount == Dinheiro.de("1000.00")
     assert proposta.outstanding_amount == Dinheiro.de("1000.00")
 
@@ -102,9 +100,7 @@ def test_cancelamento_e_terminal() -> None:
     assert proposta.status is StatusDaProposta.CANCELLED
 
     with pytest.raises(PropostaCanceladaError):
-        proposta.alterar_operacao(
-            operation_amount=Dinheiro.de("1.00"), tps=PercentualTps.de("1")
-        )
+        proposta.alterar_operacao(operation_amount=Dinheiro.de("1.00"), tps=PercentualTps.de("1"))
 
 
 def test_proposta_cancelada_nao_volta_a_ficar_aberta() -> None:

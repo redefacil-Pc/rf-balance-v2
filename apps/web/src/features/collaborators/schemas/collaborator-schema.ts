@@ -47,7 +47,14 @@ export const collaboratorSchema = z
   .refine((dados) => !dados.payment_key || Boolean(dados.payment_key_type), {
     message: 'Informe o tipo da chave PIX',
     path: ['payment_key_type'],
-  });
+  })
+  .refine(
+    (dados) => dados.roles.filter(({ role }) => role === 'CONSULTOR' || role === 'CONSULTOR_MEI_ESCALONADO').length <= 1,
+    {
+      message: 'Escolha apenas uma modalidade de consultor: padrão ou escalonado',
+      path: ['roles'],
+    },
+  );
 
 export type CollaboratorForm = z.infer<typeof collaboratorSchema>;
 

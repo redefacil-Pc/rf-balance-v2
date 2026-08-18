@@ -9,21 +9,27 @@ import {
   List,
   Modal,
   Stack,
+  Table,
   Text,
   Textarea,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconAlertTriangle, IconDownload, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCalculator, IconCash, IconDownload, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { useAuth } from '@/app/providers/AuthProvider';
+import { ReceiptCreateModal } from '@/features/proposals/components/ReceiptCreateModal';
+import { CommissionExplanationModal } from '@/features/receipts/components/CommissionExplanationModal';
 import { useDecideProposal } from '@/features/proposals/mutations/useDecideProposal';
 import { useRemoveAttachment } from '@/features/proposals/mutations/useRemoveAttachment';
 import { useSubmitProposal } from '@/features/proposals/mutations/useSubmitProposal';
 import { useUploadAttachment } from '@/features/proposals/mutations/useUploadAttachment';
 import { useProposalAttachments } from '@/features/proposals/queries/useProposalAttachments';
 import { useProposal } from '@/features/proposals/queries/useProposal';
+import { useProposalReceipts } from '@/features/proposals/queries/useProposalReceipts';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
+import { formatarMoeda } from '@/shared/formatters/currency';
 import {
   COR_DA_APROVACAO,
   ROTULO_DA_APROVACAO,
@@ -43,6 +49,14 @@ function formatarTamanho(bytes: number): string {
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function somarValores(valores: string[]): string {
+  const centavos = valores.reduce((total, valor) => {
+    const [inteiro = '0', decimal = ''] = valor.split('.');
+    return total + BigInt(inteiro) * 100n + BigInt(decimal.padEnd(2, '0').slice(0, 2));
+  }, 0n);
+  return `${centavos / 100n}.${(centavos % 100n).toString().padStart(2, '0')}`;
+}
+
 /**
  * Fluxo cadastro → financeiro (situação de aprovação, separada do status
  * financeiro). Quem cadastrou anexa comprovante e envia; o financeiro aprova
@@ -52,12 +66,18 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
   const { pode } = useAuth();
   const podeEscrever = pode('proposals:write');
   const podeAprovar = pode('proposals:approve');
+  const podeDeclararRecebimento = pode('receipts:write');
 
   const [devolvendo, setDevolvendo] = useState(false);
   const [motivo, setMotivo] = useState('');
+  const [recebimentoAberto, recebimento] = useDisclosure(false);
+  const [calculo, setCalculo] = useState<
+    { receiptId: number | null; proposalId: number | null } | null
+  >(null);
 
   const anexos = useProposalAttachments(proposta?.id ?? null);
   const detalhe = useProposal(proposta?.id ?? null);
+  const recebimentos = useProposalReceipts(proposta?.id ?? null);
   const enviar = useSubmitProposal();
   const decidir = useDecideProposal();
   const anexar = useUploadAttachment();
@@ -78,7 +98,14 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
   }
 
   const editavel = proposta.approval_status === 'DRAFT' || proposta.approval_status === 'REJECTED';
-  const temAnexos = (anexos.data ?? []).length > 0;
+  const podeReceber =
+    editavel ||
+    (proposta.approval_status === 'APPROVED' && proposta.status !== 'PAID' && proposta.status !== 'CANCELLED');
+  const declarados = (recebimentos.data?.items ?? []).filter(
+    (item) => item.status !== 'REJECTED' && item.net_amount !== '0.00',
+  );
+  const temComprovante = (anexos.data ?? []).length > 0 || declarados.length > 0;
+  const totalDeclarado = somarValores(declarados.map((item) => item.net_amount));
 
   const enviarAoFinanceiro = () => {
     enviar.mutate(
@@ -232,6 +259,86 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
           </FileButton>
         )}
 
+        <Divider label="Valores recebidos" labelPosition="left" />
+
+        <EstadoDaLista
+          carregando={recebimentos.isPending}
+          erro={recebimentos.error ?? null}
+          vazio={(recebimentos.data?.items.length ?? 0) === 0}
+          mensagemVazio="Nenhum recebimento declarado."
+        >
+          <Table verticalSpacing="xs">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Data</Table.Th>
+                <Table.Th>Forma</Table.Th>
+                <Table.Th ta="right">Valor</Table.Th>
+                <Table.Th>Comprovante / cálculo</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {(recebimentos.data?.items ?? []).map((item) => (
+                <Table.Tr key={item.id}>
+                  <Table.Td>{item.business_date.split('-').reverse().join('/')}</Table.Td>
+                  <Table.Td>{item.payment_method}</Table.Td>
+                  <Table.Td ta="right">
+                    <Stack gap={2} align="flex-end">
+                      <Text size="sm">{formatarMoeda(item.net_amount)}</Text>
+                      {item.reversed && (
+                        <Text size="xs" c="dimmed">
+                          {item.net_amount === '0.00' ? 'Estornado' : 'Estorno parcial'}
+                        </Text>
+                      )}
+                    </Stack>
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap={4} wrap="nowrap">
+                      <ActionIcon
+                        component="a"
+                        href={`/api/v1/receipts/${item.id}/proof`}
+                        target="_blank"
+                        variant="subtle"
+                        aria-label={`Baixar comprovante de ${formatarMoeda(item.amount)}`}
+                      >
+                        <IconDownload size={16} />
+                      </ActionIcon>
+                      {item.status === 'APPROVED' && pode('settlements:read') && (
+                        <ActionIcon variant="subtle" aria-label="Ver cálculo da comissão"
+                          onClick={() => setCalculo({ receiptId: item.id, proposalId: null })}>
+                          <IconCalculator size={16} />
+                        </ActionIcon>
+                      )}
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+          <Group justify="flex-end" mt="xs">
+            {proposta.approval_status === 'APPROVED' && pode('settlements:read') && (
+              <Button
+                size="xs"
+                variant="subtle"
+                leftSection={<IconCalculator size={15} />}
+                onClick={() => setCalculo({ receiptId: null, proposalId: proposta.id })}
+              >
+                Memória completa da proposta
+              </Button>
+            )}
+            <Text size="sm" fw={600}>Total declarado: {formatarMoeda(totalDeclarado)}</Text>
+          </Group>
+        </EstadoDaLista>
+
+        {podeReceber && podeDeclararRecebimento && (
+          <Button
+            variant="default"
+            leftSection={<IconCash size={16} />}
+            onClick={recebimento.open}
+          >
+            Declarar recebimento
+          </Button>
+        )}
+
         {proposta.approval_status === 'REJECTED' && detalhe.data?.rejection_reason && (
           <Alert variant="light" color="red" title="Motivo da devolução">
             {detalhe.data.rejection_reason}
@@ -250,8 +357,8 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
               <Button
                 onClick={enviarAoFinanceiro}
                 loading={enviar.isPending}
-                disabled={!temAnexos}
-                title={!temAnexos ? 'Anexe ao menos um comprovante para enviar' : undefined}
+                disabled={!temComprovante}
+                title={!temComprovante ? 'Anexe ou declare ao menos um comprovante para enviar' : undefined}
               >
                 Enviar para aprovação
               </Button>
@@ -267,7 +374,7 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
                   Devolver
                 </Button>
                 <Button color="positivo" onClick={aprovar} loading={decidir.isPending}>
-                  Aprovar
+                  Aprovar e reconhecer valores
                 </Button>
               </>
             )}
@@ -302,6 +409,16 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
           </Stack>
         )}
       </Stack>
+      <ReceiptCreateModal
+        opened={recebimentoAberto}
+        proposalId={proposta.id}
+        onClose={recebimento.close}
+      />
+      <CommissionExplanationModal
+        receiptId={calculo?.receiptId ?? null}
+        proposalId={calculo?.proposalId ?? null}
+        onClose={() => setCalculo(null)}
+      />
     </Modal>
   );
 }

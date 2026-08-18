@@ -19,13 +19,17 @@ import {
   useAddFunction,
   useCloseFunction,
 } from '@/features/collaborators/mutations/useManageFunctions';
+import { useUpdateCollaborator } from '@/features/collaborators/mutations/useUpdateCollaborator';
+import { useCollaboratorDetail } from '@/features/collaborators/queries/useCollaboratorDetail';
 import { useCollaboratorFunctions } from '@/features/collaborators/queries/useCollaboratorFunctions';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
+import { dataLocalHoje } from '@/shared/formatters/local-date';
 import {
   PAPEIS,
   rotuloDoPapel,
   type Collaborator,
   type Papel,
+  type TaxRegime,
 } from '@/shared/types/organization';
 
 interface Props {
@@ -40,7 +44,7 @@ function formatarData(iso: string): string {
 }
 
 function hoje(): string {
-  return new Date().toISOString().slice(0, 10);
+  return dataLocalHoje();
 }
 
 /**
@@ -55,19 +59,63 @@ export function CollaboratorFunctionsModal({ colaborador, podeEscrever, onFechar
   const [inicio, setInicio] = useState(hoje);
   const [encerrando, setEncerrando] = useState<number | null>(null);
   const [fim, setFim] = useState(hoje);
+  const [motivoTroca, setMotivoTroca] = useState('');
 
   const consulta = useCollaboratorFunctions(colaborador?.id ?? null);
+  const detalhe = useCollaboratorDetail(colaborador?.id ?? null);
   const abrir = useAddFunction();
   const encerrar = useCloseFunction();
+  const atualizar = useUpdateCollaborator();
 
   const fechar = () => {
     setFuncao(null);
     setEncerrando(null);
+    setMotivoTroca('');
     onFechar();
   };
 
+  const funcoes = consulta.data ?? [];
+  const modalidadeVigente = funcoes.find(
+    (item) => item.current && (item.role === 'CONSULTOR' || item.role === 'CONSULTOR_MEI_ESCALONADO'),
+  )?.role;
+  const modalidadeSelecionada = funcao === 'CONSULTOR' || funcao === 'CONSULTOR_MEI_ESCALONADO'
+    ? funcao
+    : null;
+  const trocandoModalidade = Boolean(
+    modalidadeVigente && modalidadeSelecionada && modalidadeSelecionada !== modalidadeVigente,
+  );
+
   const confirmarAbertura = () => {
     if (!colaborador || !funcao) {
+      return;
+    }
+    if (trocandoModalidade) {
+      if (!detalhe.data || !modalidadeSelecionada || motivoTroca.trim().length < 3) return;
+      atualizar.mutate(
+        {
+          id: colaborador.id,
+          company_id: colaborador.company_id,
+          unit_id: colaborador.unit_id,
+          full_name: colaborador.full_name,
+          tax_regime: colaborador.tax_regime as TaxRegime,
+          email: detalhe.data.email,
+          phone: detalhe.data.phone,
+          consultant_modality: modalidadeSelecionada,
+          modality_valid_from: inicio,
+          modality_reason: motivoTroca.trim(),
+        },
+        {
+          onSuccess: () => {
+            notifications.show({
+              color: 'positivo',
+              title: 'Regra de comissão alterada',
+              message: `${rotuloDoPapel(funcao)} vigente desde ${formatarData(inicio)}.`,
+            });
+            setFuncao(null);
+            setMotivoTroca('');
+          },
+        },
+      );
       return;
     }
     abrir.mutate(
@@ -104,8 +152,8 @@ export function CollaboratorFunctionsModal({ colaborador, podeEscrever, onFechar
     );
   };
 
-  const erro = abrir.error ?? encerrar.error ?? null;
-  const funcoes = consulta.data ?? [];
+  const erro = abrir.error ?? encerrar.error ?? atualizar.error ?? detalhe.error ?? null;
+  const papeisDisponiveis = PAPEIS.filter((papel) => papel !== modalidadeVigente);
 
   return (
     <Modal
@@ -215,13 +263,15 @@ export function CollaboratorFunctionsModal({ colaborador, podeEscrever, onFechar
                 label="Função"
                 placeholder="Selecione"
                 w={220}
-                data={PAPEIS.map((papel) => ({ value: papel, label: rotuloDoPapel(papel) }))}
+                data={papeisDisponiveis.map((papel) => ({ value: papel, label: rotuloDoPapel(papel) }))}
                 value={funcao}
                 onChange={(valor) => setFuncao(valor as Papel | null)}
+                disabled={consulta.isPending}
               />
               <TextInput
                 label="A partir de"
                 type="date"
+                min={hoje()}
                 value={inicio}
                 onChange={(evento) => setInicio(evento.currentTarget.value)}
                 w={180}
@@ -229,15 +279,22 @@ export function CollaboratorFunctionsModal({ colaborador, podeEscrever, onFechar
               <Button
                 leftSection={<IconPlus size={16} />}
                 onClick={confirmarAbertura}
-                loading={abrir.isPending}
-                disabled={!funcao}
+                loading={abrir.isPending || atualizar.isPending}
+                disabled={!funcao || (trocandoModalidade && (!detalhe.data || motivoTroca.trim().length < 3))}
               >
-                Abrir
+                {trocandoModalidade ? 'Trocar' : 'Abrir'}
               </Button>
             </Group>
+            {trocandoModalidade && <TextInput
+              label="Motivo da troca"
+              withAsterisk
+              value={motivoTroca}
+              onChange={(evento) => setMotivoTroca(evento.currentTarget.value)}
+            />}
             <Text size="xs" c="dimmed">
-              Acumular funções diferentes é permitido. A mesma função não pode se sobrepor a si
-              mesma.
+              {trocandoModalidade
+                ? 'A modalidade atual será encerrada no dia anterior. A conta, os vínculos e o histórico serão preservados.'
+                : 'Acumular funções diferentes é permitido. A mesma função não pode se sobrepor a si mesma.'}
             </Text>
           </>
         )}

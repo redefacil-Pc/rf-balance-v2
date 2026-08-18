@@ -15,7 +15,18 @@ export function useUsers(filters: UserFilters = {}) {
   if (filters.is_active !== undefined) params.set('is_active', String(filters.is_active));
   return useQuery<UserPage, ApiError>({
     queryKey: [...userKeys.all, filters],
-    queryFn: ({ signal }) => requisitar<UserPage>(`/users?${params}`, { signal }),
+    queryFn: async ({ signal }) => {
+      const items: UserPage['items'] = [];
+      let cursor: string | null = null;
+      do {
+        const pageParams = new URLSearchParams(params);
+        if (cursor) pageParams.set('cursor', cursor);
+        const page = await requisitar<UserPage>(`/users?${pageParams}`, { signal });
+        items.push(...page.items);
+        cursor = page.next_cursor;
+      } while (cursor);
+      return { items, next_cursor: null };
+    },
   });
 }
 

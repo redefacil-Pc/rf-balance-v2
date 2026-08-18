@@ -118,6 +118,31 @@ class Proposal:
     def editavel_pelo_cadastrante(self) -> bool:
         return self.approval_status in EDITAVEIS
 
+    @property
+    def aceita_recebimento(self) -> bool:
+        """Se cabe declarar mais um valor recebido nesta proposta.
+
+        Duas janelas, e o que muda entre elas é **quando** o Financeiro confere:
+
+        - antes do envio, o valor entra junto da proposta e a aprovação dele
+          reconhece tudo de uma vez;
+        - depois de aprovada, enquanto sobrar saldo, o cliente ainda paga o
+          restante — e aí a conferência é avulsa, porque a aprovação da proposta
+          já aconteceu e não se repete.
+
+        Fica de fora a janela do meio: entre o envio e a decisão o conjunto
+        congela, senão o Financeiro estaria conferindo uma coisa e aprovando
+        outra. E proposta quitada não recebe mais: não há o que pagar.
+        """
+        if self.status is StatusDaProposta.CANCELLED:
+            return False
+        if self.editavel_pelo_cadastrante:
+            return True
+        return (
+            self.approval_status is SituacaoDeAprovacao.APPROVED
+            and self.status is not StatusDaProposta.PAID
+        )
+
     def alterar_operacao(self, *, operation_amount: Dinheiro, tps: PercentualTps) -> None:
         """Altera valor e TPS. Quem verifica se o período está aberto é o caso de
         uso — a proposta não conhece o calendário contábil."""

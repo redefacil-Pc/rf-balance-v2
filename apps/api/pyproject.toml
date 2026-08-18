@@ -20,6 +20,8 @@ dependencies = [
     "boto3>=1.35,<2",
     # exigido pelo FastAPI para `UploadFile` (upload de comprovante)
     "python-multipart>=0.0.12,<0.1",
+    "openpyxl>=3.1,<4",
+    "reportlab>=4.2,<5",
 ]
 
 [project.optional-dependencies]
@@ -58,7 +60,7 @@ warn_unreachable = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["asyncmy.*", "boto3.*", "botocore.*"]
+module = ["asyncmy.*", "boto3.*", "botocore.*", "openpyxl.*", "reportlab.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

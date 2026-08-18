@@ -1,9 +1,10 @@
 import { Grid, Stack, Text, Title } from '@mantine/core';
 
 import { useAuth } from '@/app/providers/AuthProvider';
+import { ActiveTeamsCard } from '@/features/teams/components/ActiveTeamsCard';
 import { AssignLeaderForm } from '@/features/teams/components/AssignLeaderForm';
-import { LeaderAtDateCard } from '@/features/teams/components/LeaderAtDateCard';
 import { AssignmentHistoryCard } from '@/features/teams/components/AssignmentHistoryCard';
+import { LeaderAtDateCard } from '@/features/teams/components/LeaderAtDateCard';
 
 export function TeamsPage() {
   const { pode } = useAuth();
@@ -19,6 +20,8 @@ export function TeamsPage() {
           uma alteração feita hoje.
         </Text>
       </div>
+
+      <ActiveTeamsCard />
 
       <Grid>
         {pode('teams:write') && (

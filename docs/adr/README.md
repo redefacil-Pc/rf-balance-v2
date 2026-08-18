@@ -11,8 +11,8 @@ Nome: `NNNN-titulo-kebab.md`. Template: [0000-template.md](0000-template.md).
 | 0001 | Monólito modular versus microserviços | — (registrar o já decidido) |
 | 0002 | MySQL versus PostgreSQL | — |
 | ~~0003~~ | ~~Cookie versus bearer token~~ | **aceito** — [0003](0003-sessao-por-cookie-httponly.md) |
-| 0004 | Celery versus alternativa de fila | **F2/F6** — worker e scheduler estão em heartbeat até isto ser decidido |
-| 0005 | Redis Streams/lista versus broker dedicado | F1 |
+| ~~0004~~ | ~~Celery versus alternativa de fila~~ | **aceito** — [0004](0004-execucao-assincrona-sem-celery.md) |
+| ~~0005~~ | ~~Redis Streams/lista versus broker dedicado~~ | **aceito** — [0005](0005-redis-streams-como-transporte.md) |
 | 0006 | S3/MinIO e política de retenção | F1 |
 | 0007 | Ledger imutável e compensação | F4 |
 | 0008 | Data usada para produção e atribuição de líder | F4 |
@@ -24,5 +24,5 @@ Nome: `NNNN-titulo-kebab.md`. Template: [0000-template.md](0000-template.md).
 | 0014 | Read models síncronos versus eventuais | F6 |
 | ~~0015~~ | ~~Casing do JSON na API~~ | **aceito** — [0015](0015-casing-do-json-da-api.md) |
 
-Restam pendentes os que travam fases seguintes; o 0004 é o mais próximo, porque
-os jobs assíncronos da F6 dependem dele.
+Os jobs assíncronos seguem os ADRs 0004 e 0005; decisões restantes são tomadas
+antes da fase que consome cada uma.

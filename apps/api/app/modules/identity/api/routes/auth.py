@@ -32,9 +32,6 @@ from app.modules.identity.application.commands.revoke_session import (
     RevokeSession,
     RevokeSessionHandler,
 )
-from app.modules.organization.infrastructure.repositories.sql_collaborator_repository import (
-    SqlCollaboratorRepository,
-)
 from app.platform.config.security import SESSION_COOKIE
 from app.platform.security.token_generator import hash_de_identificador
 
@@ -72,23 +69,19 @@ async def login(
         csrf_token=resultado.csrf_token,
         settings=request.app.state.settings.security,
     )
-    permissions = set(resultado.permissions)
-    if "OPERACIONAL" in resultado.roles:
-        collaborators = SqlCollaboratorRepository(uow.session)
-        collaborator = await collaborators.colaborador_da_conta(resultado.user_id)
-        if collaborator is not None and collaborator.is_active:
-            functions = await collaborators.papeis_vigentes_em(
-                collaborator.id, request.app.state.clock.business_date()
-            )
-            if any(item.role == "FINALIZACAO" for item in functions):
-                permissions.update(("receipts:read", "receipts:write"))
-
+    # As permissões saem do papel, e de nada mais. Houve aqui um acréscimo de
+    # `receipts:*` para o Operacional com função de Finalização — mas quem
+    # autoriza cada rota é `require_permission`, que lê o banco. O login
+    # prometia o que a chamada seguinte negava, e o `/auth/me` respondia
+    # diferente do próprio login para o mesmo usuário. A permissão agora é
+    # concedida de verdade no catálogo; a função operacional continua sendo
+    # verificada onde importa, no `_require_launcher` da rota de recebimento.
     return CurrentUserResponse(
         id=resultado.user_id,
         email=resultado.email,
         full_name=resultado.full_name,
         roles=resultado.roles,
-        permissions=sorted(permissions),
+        permissions=sorted(resultado.permissions),
         must_change_password=resultado.must_change_password,
     )
 

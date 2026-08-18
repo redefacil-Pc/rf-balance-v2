@@ -7,6 +7,7 @@ de março pela função que a pessoa tinha em março.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 import pytest
@@ -100,7 +101,7 @@ async def test_criacao_vincula_conta_no_mesmo_commit(api: Api) -> None:
             "unit_id": None,
             "full_name": "Conta Livre",
             "document": "390.533.447-05",
-            "tax_regime": "CLT",
+            "tax_regime": "MEI",
             "roles": [{"role": "CONSULTOR", "valid_from": "2026-01-01"}],
             "user_id": conta.json()["id"],
         },
@@ -129,7 +130,7 @@ async def test_conta_ja_vinculada_e_recusada(api: Api, colaborador: int) -> None
             "unit_id": None,
             "full_name": "Outra Pessoa",
             "document": "390.533.447-05",
-            "tax_regime": "CLT",
+            "tax_regime": "MEI",
             "roles": [{"role": "CONSULTOR", "valid_from": "2026-01-01"}],
             "user_id": conta.json()["id"],
         },
@@ -223,6 +224,80 @@ async def test_troca_de_funcao_preserva_a_anterior(api: Api, colaborador: int) -
     assert por_papel["FINALIZACAO"]["current"] is True
 
 
+async def test_troca_atomica_de_mei_para_mei_2_preserva_conta_e_historico(api: Api) -> None:
+    hoje = date.today()
+    empresa = await api.post(
+        "/api/v1/companies",
+        {"legal_name": "Modalidades LTDA", "trade_name": "Modalidades", "document": CNPJ_EMPRESA},
+    )
+    conta = await api.post(
+        "/api/v1/users",
+        {
+            "email": "modalidade@rfbalance.local",
+            "full_name": "Consultora Modalidade",
+            "roles": ["CONSULTOR"],
+        },
+    )
+    criado = await api.post(
+        "/api/v1/collaborators",
+        {
+            "company_id": empresa.json()["id"],
+            "unit_id": None,
+            "full_name": "Consultora Modalidade",
+            "document": CPF,
+            "tax_regime": "MEI",
+            "roles": [{"role": "CONSULTOR", "valid_from": "2026-01-01"}],
+            "user_id": conta.json()["id"],
+        },
+    )
+    assert criado.status_code == 201, criado.text
+
+    alterado = await api.put(
+        f"/api/v1/collaborators/{criado.json()['id']}",
+        {
+            "company_id": empresa.json()["id"],
+            "unit_id": None,
+            "full_name": "Consultora Modalidade",
+            "tax_regime": "CLT",
+            "email": "modalidade@rfbalance.local",
+            "phone": None,
+            "consultant_modality": "CONSULTOR_MEI_ESCALONADO",
+            "modality_valid_from": hoje.isoformat(),
+            "modality_reason": "mudança para cálculo escalonado",
+        },
+    )
+    assert alterado.status_code == 204, alterado.text
+
+    funcoes = await _funcoes(api, criado.json()["id"])
+    por_papel = {item["role"]: item for item in funcoes}
+    assert por_papel["CONSULTOR"]["valid_to"] == (hoje - timedelta(days=1)).isoformat()
+    assert por_papel["CONSULTOR_MEI_ESCALONADO"]["valid_from"] == hoje.isoformat()
+    assert por_papel["CONSULTOR_MEI_ESCALONADO"]["current"] is True
+
+    cadastro = await api.get("/api/v1/collaborators?name=Consultora%20Modalidade")
+    assert cadastro.json()["items"][0]["tax_regime"] == "CLT"
+
+    detalhe_da_conta = await api.get(f"/api/v1/users/{conta.json()['id']}")
+    assert detalhe_da_conta.json()["collaborator_id"] == criado.json()["id"]
+
+
+async def test_modalidades_de_consultor_nao_podem_ser_acumuladas(
+    api: Api, colaborador: int
+) -> None:
+    aberta = await api.post(
+        f"/api/v1/collaborators/{colaborador}/functions",
+        {"function": "CONSULTOR", "valid_from": "2026-01-01"},
+    )
+    assert aberta.status_code == 201, aberta.text
+
+    segunda = await api.post(
+        f"/api/v1/collaborators/{colaborador}/functions",
+        {"function": "CONSULTOR_MEI_ESCALONADO", "valid_from": "2026-08-17"},
+    )
+    assert segunda.status_code == 409
+    assert segunda.json()["type"].endswith("vigencia-sobreposta")
+
+
 async def test_vigente_vem_antes_do_historico(api: Api, colaborador: int) -> None:
     antiga = (await _funcoes(api, colaborador))[0]
     await api.put(
@@ -264,9 +339,7 @@ async def test_encerrar_duas_vezes_e_recusado(api: Api, colaborador: int) -> Non
     assert segunda.status_code == 409
 
 
-async def test_funcao_de_outro_colaborador_nao_e_encerravel(
-    api: Api, colaborador: int
-) -> None:
+async def test_funcao_de_outro_colaborador_nao_e_encerravel(api: Api, colaborador: int) -> None:
     """O escopo pelo colaborador impede encerrar função alheia trocando o id."""
     alvo = (await _funcoes(api, colaborador))[0]
 

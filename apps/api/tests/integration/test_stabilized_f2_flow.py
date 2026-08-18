@@ -99,7 +99,7 @@ async def test_cruds_administrativos_preservam_historico(api: Api) -> None:
             "company_id": company_id,
             "unit_id": None,
             "full_name": "Pessoa Atualizada",
-            "tax_regime": "CLT",
+            "tax_regime": "MEI",
             "email": "nova@empresa.test",
             "phone": "11888880000",
             "payment_key": {"key_type": "TELEFONE", "key": "+5511888880000"},
@@ -240,42 +240,10 @@ async def test_usuario_colaborador_proposta_comprovante_e_aprovacao(
             headers=csrf,
         )
         assert upload.status_code == 201, upload.text
-        submitted = await operational_client.post(
-            f"/api/v1/proposals/{proposal_id}/submission",
-            json={"version": proposal.json()["version"]},
-            headers=csrf,
-        )
-        assert submitted.status_code == 200
 
-    async with novo_cliente() as finance_client:
-        login = await finance_client.post(
-            "/api/v1/auth/login",
-            json={
-                "email": "financeiro.fluxo@rfbalance.test",
-                "password": finance.json()["temporary_password"],
-            },
-        )
-        assert login.status_code == 200
-        csrf = {CSRF_HEADER: finance_client.cookies[CSRF_COOKIE]}
-        approved = await finance_client.post(
-            f"/api/v1/proposals/{proposal_id}/decision",
-            json={"version": submitted.json()["version"], "decision": "APROVAR"},
-            headers=csrf,
-        )
-        assert approved.status_code == 200, approved.text
-        assert approved.json()["approval_status"] == "APPROVED"
-
-    async with novo_cliente() as operational_client:
-        login = await operational_client.post(
-            "/api/v1/auth/login",
-            json={
-                "email": "operacao.fluxo@rfbalance.test",
-                "password": operational.json()["temporary_password"],
-            },
-        )
-        assert login.status_code == 200
+        # A Finalização declara o valor recebido **antes** de enviar: é
+        # justamente isso que o Financeiro vai conferir no extrato.
         assert "receipts:write" in login.json()["permissions"]
-        csrf = {CSRF_HEADER: operational_client.cookies[CSRF_COOKIE]}
         receipt = await operational_client.post(
             f"/api/v1/proposals/{proposal_id}/receipts",
             data={
@@ -304,6 +272,13 @@ async def test_usuario_colaborador_proposta_comprovante_e_aprovacao(
         assert replay.status_code == 201, replay.text
         assert replay.json()["id"] == receipt_id
 
+        submitted = await operational_client.post(
+            f"/api/v1/proposals/{proposal_id}/submission",
+            json={"version": proposal.json()["version"]},
+            headers=csrf,
+        )
+        assert submitted.status_code == 200
+
     async with novo_cliente() as finance_client:
         login = await finance_client.post(
             "/api/v1/auth/login",
@@ -314,14 +289,21 @@ async def test_usuario_colaborador_proposta_comprovante_e_aprovacao(
         )
         assert login.status_code == 200
         csrf = {CSRF_HEADER: finance_client.cookies[CSRF_COOKIE]}
-        approved_receipt = await finance_client.post(
-            f"/api/v1/receipts/{receipt_id}/decision",
-            json={"decision": "APPROVE"},
+
+        # uma decisão só: aprovar a proposta é conferir o pagamento e
+        # reconhecer o dinheiro no mesmo ato
+        approved = await finance_client.post(
+            f"/api/v1/proposals/{proposal_id}/decision",
+            json={"version": submitted.json()["version"], "decision": "APROVAR"},
             headers=csrf,
         )
-        assert approved_receipt.status_code == 200, approved_receipt.text
-        assert approved_receipt.json()["proposal_status"] == "PARTIALLY_PAID"
-        assert approved_receipt.json()["proposal_paid_amount"] == "100.00"
+        assert approved.status_code == 200, approved.text
+        assert approved.json()["approval_status"] == "APPROVED"
+
+        detalhe = await finance_client.get(f"/api/v1/proposals/{proposal_id}")
+        assert detalhe.json()["paid_amount"] == "100.00"
+        assert detalhe.json()["status"] == "PARTIALLY_PAID"
+
         reversal = await finance_client.post(
             f"/api/v1/receipts/{receipt_id}/reversal",
             json={"reason": "lançamento duplicado", "business_date": "2026-08-13"},

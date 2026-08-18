@@ -1,15 +1,14 @@
 import { ActionIcon, Badge, Button, Card, Group, Select, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { IconCash, IconDownload, IconReceiptRefund } from '@tabler/icons-react';
+import { IconCalculator, IconDownload, IconReceiptRefund } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { useAuth } from '@/app/providers/AuthProvider';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
 import { formatarMoeda } from '@/shared/formatters/currency';
 import { ReceiptActionModal } from '../components/ReceiptActionModal';
-import { ReceiptCreateModal } from '../components/ReceiptCreateModal';
+import { CommissionExplanationModal } from '../components/CommissionExplanationModal';
 import { useReceipts } from '../queries/useReceipts';
-import type { Receipt, ReceiptStatus } from '../types';
+import type { Receipt, ReceiptStatus } from '@/shared/types/receipts';
 
 const labels: Record<ReceiptStatus, string> = {
   SUBMITTED: 'Aguardando financeiro', APPROVED: 'Aprovado', REJECTED: 'Devolvido',
@@ -22,11 +21,10 @@ export function ReceiptsPage() {
   const { usuario, pode } = useAuth();
   const [status, setStatus] = useState<ReceiptStatus | undefined>();
   const query = useReceipts(status);
-  const [createOpened, create] = useDisclosure(false);
   const [selected, setSelected] = useState<Receipt | null>(null);
   const [action, setAction] = useState<'DECIDE' | 'REVERSE'>('DECIDE');
+  const [explainedReceiptId, setExplainedReceiptId] = useState<number | null>(null);
   const roles = new Set(usuario?.roles ?? []);
-  const canLaunch = pode('receipts:write') && (roles.has('FINANCEIRO') || roles.has('OPERACIONAL'));
   const isFinance = roles.has('FINANCEIRO');
   const openAction = (receipt: Receipt, next: 'DECIDE' | 'REVERSE') => {
     setSelected(receipt); setAction(next);
@@ -37,7 +35,6 @@ export function ReceiptsPage() {
       <div><Title order={2} size="h3">Recebimentos</Title>
         <Text c="dimmed" size="sm">Lançamentos com comprovante, aprovação financeira e histórico de estornos.</Text>
       </div>
-      {canLaunch && <Button leftSection={<IconCash size={16} />} onClick={create.open}>Lançar recebimento</Button>}
     </Group>
     <Card withBorder><Select label="Situação" clearable w={260} value={status ?? null}
       onChange={(value) => setStatus((value as ReceiptStatus | null) ?? undefined)}
@@ -66,7 +63,13 @@ export function ReceiptsPage() {
               href={`/api/v1/receipts/${receipt.id}/proof`} aria-label="Baixar comprovante" variant="subtle">
               <IconDownload size={16} /></ActionIcon></Tooltip></Table.Td>
             <Table.Td><Group gap={4} wrap="nowrap">
-              {isFinance && receipt.status === 'SUBMITTED' && receipt.created_by !== usuario?.id &&
+              {receipt.status === 'APPROVED' && pode('settlements:read') &&
+                <Tooltip label="Ver cálculo"><ActionIcon variant="subtle"
+                  aria-label="Ver cálculo da comissão" onClick={() => setExplainedReceiptId(receipt.id)}>
+                  <IconCalculator size={16} /></ActionIcon></Tooltip>}
+              {isFinance && receipt.status === 'SUBMITTED' &&
+                receipt.proposal_approval_status === 'APPROVED' &&
+                receipt.created_by !== usuario?.id &&
                 <Button size="xs" variant="light" onClick={() => openAction(receipt, 'DECIDE')}>Analisar</Button>}
               {isFinance && receipt.status === 'APPROVED' && !receipt.reversed &&
                 <Tooltip label="Estornar"><ActionIcon color="red" variant="subtle"
@@ -77,7 +80,7 @@ export function ReceiptsPage() {
         </Table></Table.ScrollContainer>
       </EstadoDaLista>
     </Card>
-    <ReceiptCreateModal opened={createOpened} onClose={create.close} />
     <ReceiptActionModal receipt={selected} action={action} onClose={() => setSelected(null)} />
+    <CommissionExplanationModal receiptId={explainedReceiptId} onClose={() => setExplainedReceiptId(null)} />
   </Stack>;
 }

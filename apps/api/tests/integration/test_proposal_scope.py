@@ -93,7 +93,9 @@ async def _criar_conta(
                 "company_id": empresa_id,
                 "unit_id": None,
                 "document": documento,
-                "tax_regime": "CLT",
+                "tax_regime": (
+                    "MEI" if funcao in {"CONSULTOR", "CONSULTOR_MEI_ESCALONADO"} else "CLT"
+                ),
                 "function": funcao,
                 "valid_from": "2026-01-01",
             },
@@ -133,9 +135,7 @@ async def _sessao(
 ) -> AsyncIterator[Api]:
     """Sessão própria, com pote de cookies separado do administrador."""
     async with novo_cliente() as cliente:
-        entrou = await cliente.post(
-            "/api/v1/auth/login", json={"email": email, "password": senha}
-        )
+        entrou = await cliente.post("/api/v1/auth/login", json={"email": email, "password": senha})
         assert entrou.status_code == 200, entrou.text
         yield Api(cliente)
 
@@ -188,15 +188,19 @@ async def test_consultor_so_enxerga_a_propria_carteira(
         admin, consultant_id=outro["collaborator_id"], documento="111.444.777-35"
     )
 
-    async with _sessao(
-        novo_cliente, "meu@rfbalance.local", eu["temporary_password"]
-    ) as api:
+    async with _sessao(novo_cliente, "meu@rfbalance.local", eu["temporary_password"]) as api:
         pagina = await api.get("/api/v1/proposals")
         ids = [item["id"] for item in pagina.json()["items"]]
 
         assert ids == [minha]
         # e a alheia não é alcançável nem chutando o id
         assert (await api.get(f"/api/v1/proposals/{alheia}")).status_code == 404
+
+        dashboard = await api.get(
+            "/api/v1/dashboard", period_start="2026-08-01", period_end="2026-08-31"
+        )
+        assert dashboard.status_code == 200, dashboard.text
+        assert dashboard.json()["summary"]["proposal_count"] == 1
 
 
 async def test_consultor_sem_vinculo_nao_enxerga_nada(
@@ -261,9 +265,7 @@ async def test_participacao_como_finalizador_conta(
         finalizer_id=final["collaborator_id"],
     )
 
-    async with _sessao(
-        novo_cliente, "final@rfbalance.local", final["temporary_password"]
-    ) as api:
+    async with _sessao(novo_cliente, "final@rfbalance.local", final["temporary_password"]) as api:
         pagina = await api.get("/api/v1/proposals")
         assert [item["id"] for item in pagina.json()["items"]] == [proposta]
 
@@ -317,14 +319,18 @@ async def test_lideranca_enxerga_a_equipe_vigente(
     da_equipe = await _criar_proposta(admin, consultant_id=liderado["collaborator_id"])
     de_fora = await _criar_proposta(admin, consultant_id=fora["collaborator_id"])
 
-    async with _sessao(
-        novo_cliente, "lider@rfbalance.local", lider["temporary_password"]
-    ) as api:
+    async with _sessao(novo_cliente, "lider@rfbalance.local", lider["temporary_password"]) as api:
         ids = [item["id"] for item in (await api.get("/api/v1/proposals")).json()["items"]]
 
         assert da_equipe in ids
         assert de_fora not in ids
         assert (await api.get(f"/api/v1/proposals/{de_fora}")).status_code == 404
+        exportacao_global = await api.get(
+            "/api/v1/commission-financial-report/export.pdf",
+            period_start="2026-08-01",
+            period_end="2026-08-31",
+        )
+        assert exportacao_global.status_code == 403
 
 
 # ---------- operacional ----------
@@ -410,7 +416,6 @@ async def test_comprovante_alheio_nao_e_listavel_nem_baixavel(
     async with _sessao(
         novo_cliente, "intruso@rfbalance.local", intruso["temporary_password"]
     ) as api:
-
         assert (await api.get(f"/api/v1/proposals/{proposta}/attachments")).status_code == 404
         baixar = await api.get(f"/api/v1/proposals/{proposta}/attachments/{anexo_id}")
         assert baixar.status_code == 404

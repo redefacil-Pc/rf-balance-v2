@@ -18,7 +18,8 @@ export const PAPEIS = [
 export type Papel = (typeof PAPEIS)[number];
 
 const ROTULOS_DOS_PAPEIS: Record<string, string> = {
-  CONSULTOR_MEI_ESCALONADO: 'MEI 2',
+  CONSULTOR: 'Consultor padrão',
+  CONSULTOR_MEI_ESCALONADO: 'Consultor escalonado',
 };
 
 /** Mantém o código canônico na API e aplica apenas o nome amigável no front. */
@@ -70,6 +71,9 @@ export interface Collaborator {
   document_type: string;
   /** Conta de acesso vinculada; nulo para quem não usa o sistema. */
   user_id: number | null;
+  user_full_name?: string | null;
+  user_email?: string | null;
+  user_is_active?: boolean | null;
 }
 
 export interface CollaboratorPage {
@@ -94,4 +98,15 @@ export interface Assignment {
   start_date: string;
   end_date: string | null;
   previous_closed_on?: string | null;
+}
+
+export interface ActiveTeamAssignment {
+  id: number;
+  member_id: number;
+  member_name: string;
+  leader_id: number;
+  leader_name: string;
+  assignment_type: TipoDeVinculo;
+  start_date: string;
+  end_date: string | null;
 }

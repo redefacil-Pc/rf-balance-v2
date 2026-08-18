@@ -113,9 +113,7 @@ async def test_criacao_conjunta_vincula_funcao_e_torna_usuario_elegivel(api: Api
         only_active=True,
         linked_user_only=True,
     )
-    assert [item["full_name"] for item in elegiveis.json()["items"]] == [
-        "Consultora Vinculada"
-    ]
+    assert [item["full_name"] for item in elegiveis.json()["items"]] == ["Consultora Vinculada"]
 
 
 async def test_falha_no_colaborador_desfaz_criacao_do_usuario(api: Api) -> None:
@@ -185,6 +183,41 @@ async def test_email_normalizado_impede_duplicata_por_caixa(api: Api) -> None:
     )
 
     assert igual.status_code == 409
+
+
+async def test_edicao_administrativa_de_usuario_e_atomica(api: Api) -> None:
+    criado = await _criar(
+        api, email="atomico@rfbalance.local", papeis=["OPERACIONAL"]
+    )
+    user_id = criado["id"]
+
+    invalido = await api.put(
+        f"/api/v1/users/{user_id}",
+        {
+            "email": "alterado@rfbalance.local",
+            "full_name": "Nome não pode persistir",
+            "roles": ["PAPEL_INEXISTENTE"],
+            "is_active": False,
+        },
+    )
+    assert invalido.status_code == 422
+    preservado = (await api.get(f"/api/v1/users/{user_id}")).json()
+    assert preservado["email"] == "atomico@rfbalance.local"
+    assert preservado["roles"] == ["OPERACIONAL"]
+    assert preservado["is_active"] is True
+
+    alterado = await api.put(
+        f"/api/v1/users/{user_id}",
+        {
+            "email": "alterado@rfbalance.local",
+            "full_name": "Nome Alterado",
+            "roles": ["FINANCEIRO"],
+            "is_active": False,
+        },
+    )
+    assert alterado.status_code == 200, alterado.text
+    assert alterado.json()["roles"] == ["FINANCEIRO"]
+    assert alterado.json()["is_active"] is False
 
 
 async def test_papel_inexistente_e_rejeitado(api: Api) -> None:
@@ -292,6 +325,63 @@ async def test_reset_de_senha_gera_nova_provisoria(api: Api) -> None:
     assert reset.json()["temporary_password"] != criado["temporary_password"]
     detalhe = (await api.get(f"/api/v1/users/{criado['id']}")).json()
     assert detalhe["must_change_password"] is True
+
+
+async def test_senha_definida_pelo_administrador_vale_no_login(
+    api: Api, novo_cliente: Callable[[], AsyncClient]
+) -> None:
+    """O que importa de verdade: a senha escolhida autentica."""
+    criado = await _criar(api, email="escolhida@rfbalance.local")
+
+    definida = await api.post(
+        f"/api/v1/users/{criado['id']}/password-reset",
+        {"password": "SenhaEscolhida2026", "require_change": False},
+    )
+
+    assert definida.status_code == 200, definida.text
+    # não ecoa o segredo de volta: quem definiu já o conhece
+    assert definida.json()["temporary_password"] is None
+    assert definida.json()["must_change_password"] is False
+
+    async with novo_cliente() as outro:
+        entrou = await outro.post(
+            "/api/v1/auth/login",
+            json={"email": "escolhida@rfbalance.local", "password": "SenhaEscolhida2026"},
+        )
+        assert entrou.status_code == 200, entrou.text
+        assert entrou.json()["must_change_password"] is False
+
+
+async def test_senha_definida_pode_exigir_troca(api: Api) -> None:
+    criado = await _criar(api, email="comtroca@rfbalance.local")
+
+    definida = await api.post(
+        f"/api/v1/users/{criado['id']}/password-reset",
+        {"password": "OutraSenhaLonga2026", "require_change": True},
+    )
+
+    assert definida.status_code == 200, definida.text
+    assert (await api.get(f"/api/v1/users/{criado['id']}")).json()["must_change_password"] is True
+
+
+async def test_senha_fraca_e_recusada(api: Api) -> None:
+    """Quem administra não instala senha que o próprio sistema recusaria."""
+    criado = await _criar(api, email="fraca@rfbalance.local")
+
+    curta = await api.post(f"/api/v1/users/{criado['id']}/password-reset", {"password": "curta"})
+
+    assert curta.status_code == 422
+    assert curta.json()["type"].endswith("weak-password")
+
+
+async def test_reset_sem_corpo_continua_gerando(api: Api) -> None:
+    """Compatibilidade: o corpo é opcional e a ausência gera, como antes."""
+    criado = await _criar(api, email="semcorpo@rfbalance.local")
+
+    reset = await api.post(f"/api/v1/users/{criado['id']}/password-reset")
+
+    assert reset.json()["temporary_password"]
+    assert reset.json()["must_change_password"] is True
 
 
 # ---------- travas contra ficar sem administrador ----------

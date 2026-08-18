@@ -17,6 +17,7 @@ from sqlalchemy import text
 from app.platform.config.security import CSRF_COOKIE, CSRF_HEADER
 from app.platform.config.settings import get_settings
 from app.platform.db.engine import criar_engine
+from app.platform.time.clock import SystemClock
 
 pytestmark = pytest.mark.integration
 
@@ -38,6 +39,9 @@ class Api:
 
     async def post(self, caminho: str, corpo: dict[str, object]) -> Response:
         return await self._cliente.post(caminho, json=corpo, headers=self._csrf)
+
+    async def put(self, caminho: str, corpo: dict[str, object]) -> Response:
+        return await self._cliente.put(caminho, json=corpo, headers=self._csrf)
 
     async def get(self, caminho: str, **params: object) -> Response:
         return await self._cliente.get(caminho, params=params or None)
@@ -381,6 +385,18 @@ async def test_transferencia_fecha_vinculo_anterior_no_dia_anterior(
         ("2026-08-15", None),
     ]
 
+    equipe_antes = (await api.get("/api/v1/assignments/active", reference_date="2026-08-14")).json()
+    assert [(v["member_name"], v["leader_name"], v["assignment_type"]) for v in equipe_antes] == [
+        ("Ana Consultora", "Bruno Lider", "COMERCIAL")
+    ]
+
+    equipe_depois = (
+        await api.get("/api/v1/assignments/active", reference_date="2026-08-15")
+    ).json()
+    assert [(v["member_name"], v["leader_name"], v["assignment_type"]) for v in equipe_depois] == [
+        ("Ana Consultora", "Carla Lider", "COMERCIAL")
+    ]
+
 
 async def test_lider_na_data_respeita_a_fronteira_do_intervalo(
     api: Api, empresa_e_unidade: tuple[int, int]
@@ -525,6 +541,68 @@ async def test_papel_incompativel_e_rejeitado(api: Api, empresa_e_unidade: tuple
     assert resposta.json()["type"].endswith("papel-incompativel")
 
 
+async def test_regime_clt_pode_ser_usado_com_funcao_de_consultor(
+    api: Api, empresa_e_unidade: tuple[int, int]
+) -> None:
+    company_id, unit_id = empresa_e_unidade
+    resposta = await api.post(
+        "/api/v1/collaborators",
+        {
+            "company_id": company_id,
+            "unit_id": unit_id,
+            "full_name": "Consultor CLT",
+            "document": CPF_CONSULTOR,
+            "tax_regime": "CLT",
+            "roles": [{"role": "CONSULTOR", "valid_from": "2026-01-01"}],
+        },
+    )
+
+    assert resposta.status_code == 201, resposta.text
+    assert resposta.json()["tax_regime"] == "CLT"
+    assert resposta.json()["roles"] == ["CONSULTOR"]
+
+
+async def test_vincula_desvincula_conta_ativa_e_rejeita_inativa(
+    api: Api, empresa_e_unidade: tuple[int, int]
+) -> None:
+    company_id, unit_id = empresa_e_unidade
+    colaborador = await _criar_colaborador(
+        api,
+        company_id=company_id,
+        unit_id=unit_id,
+        nome="Consultora para Acesso",
+        documento=CPF_CONSULTOR,
+        papel="CONSULTOR",
+    )
+    conta = await api.post(
+        "/api/v1/users",
+        {
+            "email": "acesso-vinculavel@rfbalance.local",
+            "full_name": "Conta Vinculável",
+            "roles": ["CONSULTOR"],
+        },
+    )
+    assert conta.status_code == 201, conta.text
+    user_id = conta.json()["id"]
+
+    vinculo = await api.put(f"/api/v1/collaborators/{colaborador}/account", {"user_id": user_id})
+    assert vinculo.status_code == 204
+    lista = await api.get("/api/v1/collaborators", name="Consultora para Acesso")
+    item = lista.json()["items"][0]
+    assert item["user_email"] == "acesso-vinculavel@rfbalance.local"
+    assert item["user_is_active"] is True
+
+    assert (
+        await api.put(f"/api/v1/collaborators/{colaborador}/account", {"user_id": None})
+    ).status_code == 204
+    assert (
+        await api.put(f"/api/v1/users/{user_id}/status", {"is_active": False})
+    ).status_code == 200
+    invalido = await api.put(f"/api/v1/collaborators/{colaborador}/account", {"user_id": user_id})
+    assert invalido.status_code == 409
+    assert invalido.json()["type"].endswith("conta-inativa")
+
+
 async def test_inativacao_encerra_vinculos_e_bloqueia_novos(
     api: Api, empresa_e_unidade: tuple[int, int]
 ) -> None:
@@ -556,13 +634,18 @@ async def test_inativacao_encerra_vinculos_e_bloqueia_novos(
         },
     )
 
+    hoje = SystemClock(get_settings().app.app_timezone).business_date()
     inativacao = await api.post(
         f"/api/v1/collaborators/{consultor}/deactivation",
-        {"deactivated_on": "2026-08-31", "reason": "desligamento"},
+        {"deactivated_on": hoje.isoformat(), "reason": "desligamento"},
     )
 
     assert inativacao.status_code == 200
     assert inativacao.json()["closed_assignments"] == 1
+    assert inativacao.json()["closed_functions"] == 1
+
+    funcoes = await api.get(f"/api/v1/collaborators/{consultor}/functions")
+    assert all(not item["current"] for item in funcoes.json())
 
     novo_vinculo = await api.post(
         "/api/v1/assignments",
@@ -576,6 +659,18 @@ async def test_inativacao_encerra_vinculos_e_bloqueia_novos(
     )
     assert novo_vinculo.status_code == 409
     assert novo_vinculo.json()["type"].endswith("colaborador-inativo")
+
+    reativacao = await api.post(
+        f"/api/v1/collaborators/{consultor}/activation",
+        {"activated_on": hoje.isoformat(), "reason": "retorno aprovado"},
+    )
+    assert reativacao.status_code == 204
+
+    nova_funcao = await api.post(
+        f"/api/v1/collaborators/{consultor}/functions",
+        {"function": "CONSULTOR_MEI_ESCALONADO", "valid_from": hoje.isoformat()},
+    )
+    assert nova_funcao.status_code == 201, nova_funcao.text
 
 
 # ---------- autorização ----------

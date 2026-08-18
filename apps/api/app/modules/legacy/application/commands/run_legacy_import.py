@@ -203,9 +203,7 @@ class RunLegacyImportHandler:
             if candidato is not None:
                 candidatos.append(candidato)
 
-        return candidatos, reconciliacao.totalizar(
-            tabela, lidos=len(linhas), candidatos=candidatos
-        )
+        return candidatos, reconciliacao.totalizar(tabela, lidos=len(linhas), candidatos=candidatos)
 
 
 def _redmine_repetido(

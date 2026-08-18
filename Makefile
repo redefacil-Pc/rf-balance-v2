@@ -3,7 +3,7 @@ API := $(COMPOSE) exec -T api
 WEB := $(COMPOSE) exec -T web
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart build logs ps shell migrate sync-rbac sync-rbac-purge revision downgrade seed seed-demo import-dry-run import-dry-run-mysql test test-unit test-integration lint format typecheck web-test web-build openapi clean
+.PHONY: help up down restart build logs ps shell migrate sync-rbac sync-rbac-purge revision downgrade seed seed-demo seed-commission-demo seed-leadership-demo seed-settlement-demo import-dry-run import-dry-run-mysql test test-unit test-integration lint format typecheck web-test web-build openapi clean
 
 help: ## lista os alvos disponíveis
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -57,6 +57,15 @@ seed: ## cria permissões, papéis e as contas mínimas de operação
 
 seed-demo: ## massa de teste: uma pessoa por perfil e função (idempotente)
 	$(API) python -m app.platform.db.seed_demo
+
+seed-commission-demo: ## propostas e recebimentos para homologar comissões (idempotente)
+	$(API) python -m app.platform.db.seed_commission_demo
+
+seed-leadership-demo: ## equipes e comissões de liderança para homologação
+	$(API) python -m app.platform.db.seed_leadership_demo
+
+seed-settlement-demo: ## ajustes, carryover e pagamentos para homologar fechamentos
+	$(API) python -m app.platform.db.seed_settlement_demo
 
 ## ---------- migração do legado ----------
 

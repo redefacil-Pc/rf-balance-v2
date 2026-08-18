@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from typing import Annotated
 
@@ -86,9 +86,11 @@ async def list_receipts(
             ReceiptResponse(
                 id=row.receipt.id,
                 proposal_id=row.receipt.proposal_id,
+                proposal_approval_status=row.proposal_approval_status,
                 customer_name=row.customer_name,
                 amount=str(row.receipt.amount),
                 business_date=row.receipt.business_date,
+                payment_datetime=row.receipt.payment_datetime,
                 payment_method=row.receipt.payment_method,
                 reference=row.receipt.reference,
                 notes=row.receipt.notes,
@@ -100,7 +102,9 @@ async def list_receipts(
                 creator_name=row.creator_name,
                 decided_at=row.receipt.decided_at,
                 decided_by=row.receipt.decided_by,
-                reversed=row.reversal_reason is not None,
+                reversed=row.reversed_amount > 0,
+                reversed_amount=str(row.reversed_amount),
+                net_amount=str(row.receipt.amount - row.reversed_amount),
                 reversal_reason=row.reversal_reason,
             )
             for row in rows
@@ -124,6 +128,7 @@ async def create_receipt(
     business_date: Annotated[date, Form()],
     payment_method: Annotated[str, Form(min_length=2, max_length=30)],
     proof: Annotated[UploadFile, File()],
+    payment_time: Annotated[time | None, Form()] = None,
     reference: Annotated[str | None, Form(max_length=100)] = None,
     notes: Annotated[str | None, Form(max_length=255)] = None,
 ) -> ReceiptWriteResponse:
@@ -132,6 +137,7 @@ async def create_receipt(
         proposal_id=proposal_id,
         amount=amount,
         business_date=business_date,
+        payment_time=payment_time,
         payment_method=payment_method,
         reference=reference,
         notes=notes,
@@ -153,6 +159,11 @@ async def decide_receipt(
     actor: Annotated[User, Depends(require_permission("receipts:approve"))],
     service: Annotated[ReceiptService, Depends(get_receipt_service)],
 ) -> ReceiptWriteResponse:
+    """Conferência avulsa, para o pagamento que chega depois da aprovação.
+
+    O que a Finalização declara antes do envio não passa por aqui: aquilo é
+    conferido junto da decisão da proposta, numa aprovação só.
+    """
     _require_finance(actor)
     result = await service.decide(
         receipt_id=receipt_id,
@@ -162,6 +173,30 @@ async def decide_receipt(
         correlation_id=getattr(request.state, "correlation_id", None),
     )
     return _write_response(result)
+
+
+@router.delete(
+    "/receipts/{receipt_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT
+)
+async def remove_receipt(
+    receipt_id: int,
+    request: Request,
+    uow: Uow,
+    actor: Annotated[User, Depends(require_permission("receipts:write"))],
+    service: Annotated[ReceiptService, Depends(get_receipt_service)],
+) -> None:
+    """Remove um recebimento declarado, antes do envio da proposta.
+
+    Não existe decisão própria de recebimento: quem confere o valor é o
+    Financeiro, ao aprovar a proposta. O que existe aqui é a correção do que a
+    Finalização digitou errado, enquanto ainda dá.
+    """
+    await _require_launcher(actor, uow, request.app.state.clock.business_date())
+    await service.remove(
+        receipt_id=receipt_id,
+        actor=actor.id,
+        correlation_id=getattr(request.state, "correlation_id", None),
+    )
 
 
 @router.post("/receipts/{receipt_id}/reversal", response_model=ReceiptWriteResponse)
@@ -177,6 +212,7 @@ async def reverse_receipt(
         receipt_id=receipt_id,
         reason=body.reason,
         business_date=body.business_date,
+        amount=body.amount,
         actor=actor.id,
         correlation_id=getattr(request.state, "correlation_id", None),
     )

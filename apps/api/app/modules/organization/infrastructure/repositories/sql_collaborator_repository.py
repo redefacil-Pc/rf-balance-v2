@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from sqlalchemy import Select, and_, or_, select, update
+from sqlalchemy import Select, and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.identity.infrastructure.models.user_model import UserModel
@@ -93,6 +93,35 @@ class SqlCollaboratorRepository:
         )
         return encontrado
 
+    async def situacao_da_conta(self, user_id: int) -> bool | None:
+        situacao: bool | None = await self._session.scalar(
+            select(UserModel.is_active).where(UserModel.id == user_id)
+        )
+        return situacao
+
+    async def contas_de_varios(
+        self, collaborator_ids: Sequence[int]
+    ) -> dict[int, tuple[int, str, str, bool]]:
+        if not collaborator_ids:
+            return {}
+        linhas = (
+            await self._session.execute(
+                select(
+                    CollaboratorModel.id,
+                    UserModel.id,
+                    UserModel.full_name,
+                    UserModel.email,
+                    UserModel.is_active,
+                )
+                .join(UserModel, UserModel.id == CollaboratorModel.user_id)
+                .where(CollaboratorModel.id.in_(collaborator_ids))
+            )
+        ).all()
+        return {
+            int(collaborator_id): (int(user_id), str(nome), str(email), bool(ativa))
+            for collaborator_id, user_id, nome, email, ativa in linhas
+        }
+
     async def definir_conta(self, *, collaborator_id: int, user_id: int | None) -> None:
         await self._session.execute(
             update(CollaboratorModel)
@@ -137,6 +166,22 @@ class SqlCollaboratorRepository:
                 is_active=False,
                 deactivated_on=em,
                 deactivation_reason=motivo,
+                updated_at=quando,
+                updated_by=ator,
+                version=CollaboratorModel.version + 1,
+            )
+        )
+
+    async def reativar(
+        self, *, collaborator_id: int, quando: datetime, ator: int | None
+    ) -> None:
+        await self._session.execute(
+            update(CollaboratorModel)
+            .where(CollaboratorModel.id == collaborator_id)
+            .values(
+                is_active=True,
+                deactivated_on=None,
+                deactivation_reason=None,
                 updated_at=quando,
                 updated_by=ator,
                 version=CollaboratorModel.version + 1,
@@ -203,6 +248,11 @@ class SqlCollaboratorRepository:
             update(CollaboratorRoleModel)
             .where(CollaboratorRoleModel.id == function_id)
             .values(valid_to=valid_to)
+        )
+
+    async def cancelar_papel_futuro(self, *, function_id: int) -> None:
+        await self._session.execute(
+            delete(CollaboratorRoleModel).where(CollaboratorRoleModel.id == function_id)
         )
         await self._session.flush()
 

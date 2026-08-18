@@ -28,6 +28,12 @@ class ColaboradorInativoError(DomainError):
     title = "Colaborador inativo"
 
 
+class SituacaoColaboradorError(DomainError):
+    status = 409
+    code = "situacao-colaborador-invalida"
+    title = "Situação do colaborador inválida"
+
+
 class VigenciaSobrepostaError(DomainError):
     status = 409
     code = "vigencia-sobreposta"
@@ -62,6 +68,12 @@ class ContaJaVinculadaError(DomainError):
     status = 409
     code = "conta-ja-vinculada"
     title = "Conta já vinculada"
+
+
+class ContaInativaError(DomainError):
+    status = 409
+    code = "conta-inativa"
+    title = "Conta inativa"
 
 
 class DadosBancariosInvalidosError(DomainError):

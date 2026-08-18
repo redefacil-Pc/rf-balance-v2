@@ -5,8 +5,12 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CollaboratorFormModal } from '@/features/collaborators/components/CollaboratorFormModal';
+import { collaboratorSchema } from '@/features/collaborators/schemas/collaborator-schema';
 
-const EMPRESAS = [{ id: 1, legal_name: 'Rede Fácil LTDA', trade_name: 'Rede Fácil', is_active: true }];
+const EMPRESAS = [
+  { id: 1, legal_name: 'Rede Fácil LTDA', trade_name: 'Rede Fácil', is_active: true },
+  { id: 2, legal_name: 'Segunda Empresa LTDA', trade_name: 'Segunda Empresa', is_active: true },
+];
 const UNIDADES = [{ id: 7, company_id: 1, code: 'MATRIZ', name: 'Matriz', is_active: true }];
 
 function responderJson(dados: unknown, status = 200): Response {
@@ -32,6 +36,10 @@ function renderizar() {
 
 describe('CollaboratorFormModal', () => {
   beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
     vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
       const caminho = String(url);
       if (caminho.includes('/companies')) {
@@ -93,6 +101,20 @@ describe('CollaboratorFormModal', () => {
       .mocked(globalThis.fetch)
       .mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST');
     expect(chamadasDeCriacao).toHaveLength(0);
+  });
+
+  it('permite combinar a função de consultor com regime CLT', async () => {
+    const resultado = collaboratorSchema.safeParse({
+      company_id: 1,
+      unit_id: null,
+      full_name: 'Consultor antigo',
+      document: '529.982.247-25',
+      tax_regime: 'CLT',
+      roles: [{ role: 'CONSULTOR', valid_from: '2026-08-17' }],
+      user_id: null,
+    });
+
+    expect(resultado.success).toBe(true);
   });
 
   it('rejeita documento com quantidade de dígitos inválida', async () => {
@@ -174,5 +196,20 @@ describe('CollaboratorFormModal', () => {
     await userEvent.setup().click(conta!);
 
     expect(await screen.findByText(/Conta Livre — livre@rfbalance.local/)).toBeInTheDocument();
+  });
+
+  it('limpa a unidade quando a empresa é trocada', async () => {
+    renderizar();
+    const usuario = userEvent.setup();
+
+    await usuario.click(await screen.findByRole('textbox', { name: /^empresa/i }));
+    await usuario.click(await screen.findByRole('option', { name: 'Rede Fácil LTDA' }));
+    await usuario.click(screen.getByRole('textbox', { name: /^unidade/i }));
+    await usuario.click(await screen.findByRole('option', { name: 'Matriz' }));
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: /^unidade/i }).value).toBe('Matriz');
+
+    await usuario.click(screen.getByRole('textbox', { name: /^empresa/i }));
+    await usuario.click(await screen.findByRole('option', { name: 'Segunda Empresa LTDA' }));
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: /^unidade/i }).value).toBe('');
   });
 });

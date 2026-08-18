@@ -19,6 +19,10 @@ describe('formatarMoeda', () => {
     expect(formatarMoeda('-250.10')).toBe(`-R$${NBSP}250,10`);
   });
 
+  it('aceita escala adicional quando contém somente zeros', () => {
+    expect(formatarMoeda('-5000.000')).toBe(`-R$${NBSP}5.000,00`);
+  });
+
   it('rejeita valor com mais de duas casas', () => {
     expect(() => formatarMoeda('10.005')).toThrow();
   });

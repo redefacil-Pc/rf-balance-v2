@@ -8,6 +8,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { CollaboratorFilters } from '@/features/collaborators/components/CollaboratorFilters';
 import { CollaboratorDeactivateModal } from '@/features/collaborators/components/CollaboratorDeactivateModal';
 import { CollaboratorBankAccountsModal } from '@/features/collaborators/components/CollaboratorBankAccountsModal';
+import { CollaboratorAccountModal } from '@/features/collaborators/components/CollaboratorAccountModal';
 import { CollaboratorEditModal } from '@/features/collaborators/components/CollaboratorEditModal';
 import { CollaboratorFormModal } from '@/features/collaborators/components/CollaboratorFormModal';
 import { CollaboratorFunctionsModal } from '@/features/collaborators/components/CollaboratorFunctionsModal';
@@ -45,6 +46,7 @@ export function CollaboratorsPage() {
   const [deactivating, setDeactivating] = useState<Collaborator | null>(null);
   const [managingFunctions, setManagingFunctions] = useState<Collaborator | null>(null);
   const [managingAccounts, setManagingAccounts] = useState<Collaborator | null>(null);
+  const [managingAccess, setManagingAccess] = useState<Collaborator | null>(null);
 
   const consulta = useCollaborators(filtros);
   const colaboradores = (consulta.data?.pages ?? []).flatMap((pagina) => pagina.items);
@@ -88,6 +90,7 @@ export function CollaboratorsPage() {
             onInativar={setDeactivating}
             onFuncoes={setManagingFunctions}
             onContas={setManagingAccounts}
+            onAcesso={setManagingAccess}
           />
         </EstadoDaLista>
       </Card>
@@ -120,6 +123,7 @@ export function CollaboratorsPage() {
         onFechar={() => setManagingFunctions(null)}
       />
       <CollaboratorBankAccountsModal collaborator={managingAccounts} onClose={() => setManagingAccounts(null)} />
+      <CollaboratorAccountModal collaborator={managingAccess} onClose={() => setManagingAccess(null)} />
     </Stack>
   );
 }

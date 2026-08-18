@@ -9,11 +9,16 @@ from app.modules.commercial.infrastructure.repositories.sql_proposal_repository 
 from app.modules.commercial.infrastructure.storage.object_attachment_storage import (
     ObjectAttachmentStorage,
 )
+from app.modules.commissions.application.standard_commission_engine import (
+    StandardCommissionEngine,
+)
 from app.modules.identity.api.dependencies import Uow
 from app.modules.receivables.application.receipt_service import ReceiptService
+from app.platform.bus.outbox_recorder import SqlOutboxRecorder
 
 
 def get_receipt_service(request: Request, uow: Uow) -> ReceiptService:
+    outbox = SqlOutboxRecorder(uow.session, request.app.state.clock)
     return ReceiptService(
         uow=uow,
         proposals=SqlProposalRepository(uow.session, request.app.state.pii_cipher),
@@ -22,5 +27,8 @@ def get_receipt_service(request: Request, uow: Uow) -> ReceiptService:
             request.app.state.settings.storage.object_storage_bucket,
         ),
         audit=SqlAuditRecorder(uow.session, request.app.state.clock),
+        outbox=outbox,
+        commissions=StandardCommissionEngine(uow.session, outbox),
         clock=request.app.state.clock,
+        timezone=request.app.state.settings.app.app_timezone,
     )

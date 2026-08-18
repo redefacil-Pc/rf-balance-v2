@@ -56,9 +56,7 @@ class RbacProposalScope:
         registradores = (user_id,) if "OPERACIONAL" in papeis else ()
         colaboradores = await self._participacao(user_id, papeis, referencia)
 
-        return EscopoDePropostas(
-            colaboradores=colaboradores, registradores=registradores
-        )
+        return EscopoDePropostas(colaboradores=colaboradores, registradores=registradores)
 
     async def _participacao(
         self, user_id: int, papeis: frozenset[str], referencia: date
@@ -75,8 +73,6 @@ class RbacProposalScope:
         if "LIDERANCA" not in papeis:
             return (eu.id,)
 
-        equipe = await self._vinculos.equipe_do_lider_em(
-            leader_id=eu.id, referencia=referencia
-        )
+        equipe = await self._vinculos.equipe_do_lider_em(leader_id=eu.id, referencia=referencia)
         # o líder entra na própria lista: ele também produz
         return tuple({eu.id, *(v.consultant_id for v in equipe)})

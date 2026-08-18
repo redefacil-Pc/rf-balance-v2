@@ -19,6 +19,7 @@ from dataclasses import dataclass
 
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
 from app.modules.organization.domain.errors import (
+    ContaInativaError,
     ContaJaVinculadaError,
     RecursoNaoEncontradoError,
 )
@@ -59,11 +60,14 @@ class LinkCollaboratorAccountHandler:
         anterior = colaborador.user_id
 
         if cmd.user_id is not None:
+            situacao = await self._colaboradores.situacao_da_conta(cmd.user_id)
+            if situacao is None:
+                raise RecursoNaoEncontradoError("Conta de acesso não encontrada.")
+            if not situacao:
+                raise ContaInativaError("Reative a conta antes de vinculá-la ao colaborador.")
             dono = await self._colaboradores.colaborador_da_conta(cmd.user_id)
             if dono is not None and dono.id != cmd.collaborator_id:
-                raise ContaJaVinculadaError(
-                    f"A conta já pertence ao colaborador {dono.full_name}."
-                )
+                raise ContaJaVinculadaError(f"A conta já pertence ao colaborador {dono.full_name}.")
 
         await self._colaboradores.definir_conta(
             collaborator_id=cmd.collaborator_id, user_id=cmd.user_id

@@ -13,7 +13,10 @@ const formatador = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 2,
 });
 
-const DECIMAL_VALIDO = /^-?\d+(\.\d{1,2})?$/;
+// Aceita casas excedentes apenas quando são zeros de escala do Decimal da API
+// (ex.: "-5000.000"). Continua rejeitando valores que exigiriam arredondamento
+// no navegador, como "10.005".
+const DECIMAL_VALIDO = /^-?\d+(?:\.\d{1,2}0*)?$/;
 
 export function formatarMoeda(valorDecimal: string): string {
   if (!DECIMAL_VALIDO.test(valorDecimal)) {

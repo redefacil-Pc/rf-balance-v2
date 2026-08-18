@@ -294,9 +294,7 @@ async def listar_anexos(
     escopo: Escopo,
     handler: Annotated[ListProposalAttachmentsHandler, Depends(get_list_attachments_handler)],
 ) -> list[AttachmentResponse]:
-    anexos = await handler.execute(
-        ListProposalAttachments(proposal_id=proposal_id, escopo=escopo)
-    )
+    anexos = await handler.execute(ListProposalAttachments(proposal_id=proposal_id, escopo=escopo))
     return [AttachmentResponse(**asdict(anexo)) for anexo in anexos]
 
 
@@ -335,9 +333,7 @@ async def baixar_comprovante(
     handler: Annotated[GetAttachmentContentHandler, Depends(get_get_attachment_content_handler)],
 ) -> Response:
     conteudo = await handler.execute(
-        GetAttachmentContent(
-            proposal_id=proposal_id, attachment_id=attachment_id, escopo=escopo
-        )
+        GetAttachmentContent(proposal_id=proposal_id, attachment_id=attachment_id, escopo=escopo)
     )
     return Response(
         content=conteudo.conteudo,

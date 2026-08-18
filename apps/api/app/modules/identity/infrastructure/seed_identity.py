@@ -72,12 +72,8 @@ class UsuarioInicial:
 
 USUARIOS_INICIAIS: tuple[UsuarioInicial, ...] = (
     UsuarioInicial("ADMIN", EMAIL_ADMIN_PADRAO, "Administrador", "ADMIN"),
-    UsuarioInicial(
-        "FINANCEIRO", EMAIL_FINANCEIRO_PADRAO, "Financeiro", "FINANCEIRO"
-    ),
-    UsuarioInicial(
-        "OPERACIONAL", EMAIL_OPERACIONAL_PADRAO, "Operacional", "OPERACIONAL"
-    ),
+    UsuarioInicial("FINANCEIRO", EMAIL_FINANCEIRO_PADRAO, "Financeiro", "FINANCEIRO"),
+    UsuarioInicial("OPERACIONAL", EMAIL_OPERACIONAL_PADRAO, "Operacional", "OPERACIONAL"),
     UsuarioInicial(
         "LIDERANCA",
         EMAIL_LIDERANCA_PADRAO,
@@ -87,9 +83,7 @@ USUARIOS_INICIAIS: tuple[UsuarioInicial, ...] = (
     ),
     # sob demanda porque conta de consultor sem colaborador vinculado não
     # enxerga nada — o escopo é por participação, e sem vínculo não há "meu"
-    UsuarioInicial(
-        "CONSULTOR", EMAIL_CONSULTOR_PADRAO, "Consultor", "CONSULTOR", sob_demanda=True
-    ),
+    UsuarioInicial("CONSULTOR", EMAIL_CONSULTOR_PADRAO, "Consultor", "CONSULTOR", sob_demanda=True),
 )
 
 

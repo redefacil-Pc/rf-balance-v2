@@ -9,7 +9,7 @@ import { UserEditModal } from '@/features/users/components/UserEditModal';
 import { UserFormModal } from '@/features/users/components/UserFormModal';
 import { UserTable } from '@/features/users/components/UserTable';
 import { useResetUserPassword, useSetUserStatus } from '@/features/users/mutations/useManageUser';
-import { useUsers } from '@/features/users/queries/useUsers';
+import { useAccessRoles, useUsers } from '@/features/users/queries/useUsers';
 import type { SystemUser } from '@/features/users/types';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
 
@@ -19,6 +19,7 @@ export function UsersPage() {
   const [role, setRole] = useState<string | undefined>();
   const [active, setActive] = useState<boolean | undefined>();
   const users = useUsers({ search: search.trim() || undefined, role, is_active: active });
+  const accessRoles = useAccessRoles();
   const { usuario } = useAuth();
   const [editing, setEditing] = useState<SystemUser | null>(null);
   const [changingStatus, setChangingStatus] = useState<SystemUser | null>(null);
@@ -40,7 +41,7 @@ export function UsersPage() {
       <Card withBorder radius="md" padding="md">
         <Group grow align="flex-end">
           <TextInput label="Buscar" placeholder="Nome ou e-mail" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
-          <Select label="Perfil" clearable data={['ADMIN', 'FINANCEIRO', 'OPERACIONAL', 'LIDERANCA', 'CONSULTOR']} value={role ?? null} onChange={(value) => setRole(value ?? undefined)} />
+          <Select label="Perfil" clearable data={(accessRoles.data ?? []).map((item) => ({ value: item.code, label: item.name }))} value={role ?? null} onChange={(value) => setRole(value ?? undefined)} />
           <Select label="Situação" clearable data={[{ value: 'true', label: 'Ativos' }, { value: 'false', label: 'Inativos' }]} value={active === undefined ? null : String(active)} onChange={(value) => setActive(value === null ? undefined : value === 'true')} />
         </Group>
       </Card>
@@ -82,7 +83,7 @@ export function UsersPage() {
           {passwordMutation.data && <><Alert color="yellow" title="Senha exibida somente agora">Envie-a por um canal seguro.</Alert><Code p="sm">{passwordMutation.data.temporary_password}</Code></>}
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setResettingPassword(null)}>{passwordMutation.data ? 'Concluir' : 'Cancelar'}</Button>
-            {!passwordMutation.data && <Button loading={passwordMutation.isPending} onClick={() => resettingPassword && passwordMutation.mutate(resettingPassword.id)}>Gerar senha provisória</Button>}
+            {!passwordMutation.data && <Button loading={passwordMutation.isPending} onClick={() => resettingPassword && passwordMutation.mutate({ id: resettingPassword.id })}>Gerar senha provisória</Button>}
           </Group>
         </Stack>
       </Modal>

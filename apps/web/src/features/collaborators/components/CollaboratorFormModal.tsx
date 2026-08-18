@@ -25,6 +25,7 @@ import {
 } from '@/features/collaborators/schemas/collaborator-schema';
 import { CampoMascarado } from '@/shared/components/CampoMascarado';
 import { mascararDocumento } from '@/shared/formatters/document-mask';
+import { dataLocalHoje } from '@/shared/formatters/local-date';
 import {
   mascararChavePix,
   placeholderDaChavePix,
@@ -37,7 +38,7 @@ interface Props {
   onFechar: () => void;
 }
 
-const HOJE = new Date().toISOString().slice(0, 10);
+const HOJE = dataLocalHoje();
 
 export function CollaboratorFormModal({ aberto, onFechar }: Props) {
   const criar = useCreateCollaborator();
@@ -68,6 +69,7 @@ export function CollaboratorFormModal({ aberto, onFechar }: Props) {
   });
 
   const companyId = watch('company_id');
+  const funcoes = watch('roles');
   const tipoDaChave = watch('payment_key_type');
   const unidades = useUnits(companyId);
   const contas = useContasVinculaveis(aberto);
@@ -124,7 +126,10 @@ export function CollaboratorFormModal({ aberto, onFechar }: Props) {
                       label: e.legal_name,
                     }))}
                     value={field.value ? String(field.value) : null}
-                    onChange={(v) => field.onChange(v ? Number(v) : undefined)}
+                    onChange={(v) => {
+                      field.onChange(v ? Number(v) : undefined);
+                      setValue('unit_id', null);
+                    }}
                     error={errors.company_id?.message}
                   />
                 )}
@@ -181,6 +186,7 @@ export function CollaboratorFormModal({ aberto, onFechar }: Props) {
                 render={({ field }) => (
                   <Select
                     label="Regime"
+                    description="Define somente o vínculo do colaborador."
                     withAsterisk
                     data={['MEI', 'CLT']}
                     value={field.value}
@@ -244,7 +250,12 @@ export function CollaboratorFormModal({ aberto, onFechar }: Props) {
                   render={({ field }) => (
                     <Select
                       label={indice === 0 ? 'Função' : undefined}
-                      data={PAPEIS.map((papel) => ({
+                      data={PAPEIS.filter((papel) => {
+                        const ehModalidade = papel === 'CONSULTOR' || papel === 'CONSULTOR_MEI_ESCALONADO';
+                        if (!ehModalidade) return true;
+                        return !funcoes.some((item, outroIndice) => outroIndice !== indice
+                          && (item.role === 'CONSULTOR' || item.role === 'CONSULTOR_MEI_ESCALONADO'));
+                      }).map((papel) => ({
                         value: papel,
                         label: rotuloDoPapel(papel),
                       }))}

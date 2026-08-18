@@ -39,6 +39,14 @@ from app.platform.db.engine import criar_engine  # noqa: E402
 #: Todas as tabelas mutáveis, das folhas para as raízes. Tabela nova entra aqui,
 #: senão o estado vaza entre testes e a suíte passa a depender da ordem.
 TABELAS_LIMPAS = (
+    "data_integrity_checks",
+    "commission_settlements",
+    "commission_manual_entries",
+    "commission_periods",
+    "commission_entries",
+    "commission_calculation_snapshots",
+    "commission_rule_assignments",
+    "commission_beneficiary_policies",
     "audit_events",
     "outbox_events",
     "login_attempts",
@@ -84,6 +92,21 @@ async def _limpar_banco() -> AsyncIterator[None]:
         await conexao.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
         for tabela in TABELAS_LIMPAS:
             await conexao.execute(text(f"TRUNCATE TABLE {tabela}"))
+        await conexao.execute(text("DELETE FROM commission_rules WHERE rule_set_id <> 1"))
+        await conexao.execute(text("DELETE FROM commission_rule_sets WHERE id <> 1"))
+        await conexao.execute(text("DELETE FROM commission_strategy_configs WHERE id > 5"))
+        await conexao.execute(
+            text(
+                "UPDATE commission_strategy_configs SET status='ACTIVE', valid_to=NULL, "
+                "activated_by=NULL WHERE id <= 5"
+            )
+        )
+        await conexao.execute(
+            text(
+                "UPDATE commission_rule_sets SET status='ACTIVE', valid_to=NULL, "
+                "activated_by=NULL WHERE id=1"
+            )
+        )
         await conexao.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
     await engine.dispose()
 

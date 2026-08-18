@@ -44,6 +44,11 @@ async def test_login_emite_os_dois_cookies_e_retorna_permissoes(
     assert SESSION_COOKIE in resposta.cookies
     assert CSRF_COOKIE in resposta.cookies
 
+    auditoria = await cliente.get("/api/v1/audit-events", params={"action": "session.opened"})
+    assert auditoria.status_code == 200, auditoria.text
+    assert auditoria.json()["items"][0]["action"] == "session.opened"
+    assert auditoria.json()["items"][0]["actor_name"]
+
 
 async def test_me_sem_sessao_retorna_401(cliente: AsyncClient) -> None:
     resposta = await cliente.get("/api/v1/auth/me")

@@ -27,9 +27,10 @@ import {
 } from '@/features/users/schemas/user-schema';
 import { CampoMascarado } from '@/shared/components/CampoMascarado';
 import { mascararDocumento } from '@/shared/formatters/document-mask';
+import { dataLocalHoje } from '@/shared/formatters/local-date';
 import { PAPEIS, rotuloDoPapel } from '@/shared/types/organization';
 
-const HOJE = new Date().toISOString().slice(0, 10);
+const HOJE = dataLocalHoje();
 
 export function UserFormModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const criar = useCreateUser();
@@ -41,6 +42,7 @@ export function UserFormModal({ opened, onClose }: { opened: boolean; onClose: (
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<UserFormInput, unknown, UserForm>({
     resolver: zodResolver(userSchema),
@@ -164,7 +166,10 @@ export function UserFormModal({ opened, onClose }: { opened: boolean; onClose: (
                     withAsterisk
                     data={(companies.data ?? []).map((company) => ({ value: String(company.id), label: company.legal_name }))}
                     value={field.value ? String(field.value) : null}
-                    onChange={(value) => field.onChange(value ? Number(value) : undefined)}
+                    onChange={(value) => {
+                      field.onChange(value ? Number(value) : undefined);
+                      setValue('unit_id', null);
+                    }}
                     error={errors.company_id?.message}
                   />
                 )}
@@ -201,7 +206,10 @@ export function UserFormModal({ opened, onClose }: { opened: boolean; onClose: (
               <Controller
                 control={control}
                 name="tax_regime"
-                render={({ field }) => <Select label="Regime" withAsterisk data={['MEI', 'CLT']} {...field} />}
+                render={({ field }) => <Select label="Regime" withAsterisk
+                  description="Define somente o vínculo do colaborador."
+                  data={['MEI', 'CLT']}
+                  error={errors.tax_regime?.message} {...field} />}
               />
             </Grid.Col>
             <Grid.Col span={{ base: 12, sm: 6 }}>

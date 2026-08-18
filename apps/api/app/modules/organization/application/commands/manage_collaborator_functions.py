@@ -27,7 +27,9 @@ from app.modules.organization.domain.errors import (
     VigenciaSobrepostaError,
 )
 from app.modules.organization.domain.policies.vigencia_policy import garantir_sem_sobreposicao
-from app.modules.organization.domain.value_objects.papel_de_colaborador import PapelDeColaborador
+from app.modules.organization.domain.value_objects.papel_de_colaborador import (
+    PapelDeColaborador,
+)
 from app.modules.organization.infrastructure.repositories.sql_collaborator_repository import (
     SqlCollaboratorRepository,
 )
@@ -85,13 +87,23 @@ class AddCollaboratorFunctionHandler:
             raise ColaboradorInativoError(
                 "Colaborador inativo não recebe função nova. Reative o cadastro antes."
             )
-
         nova = _intervalo(cmd.valid_from, cmd.valid_to)
 
         # só a mesma função conflita: acumular consultor e líder é legítimo
-        mesmas = await self._colaboradores.papeis_do_colaborador(
-            cmd.collaborator_id, papel=cmd.funcao.value
-        )
+        modalidades_consultor = {
+            PapelDeColaborador.CONSULTOR,
+            PapelDeColaborador.CONSULTOR_MEI_ESCALONADO,
+        }
+        if cmd.funcao in modalidades_consultor:
+            mesmas = [
+                papel
+                for papel in await self._colaboradores.papeis_do_colaborador(cmd.collaborator_id)
+                if PapelDeColaborador(papel.role) in modalidades_consultor
+            ]
+        else:
+            mesmas = await self._colaboradores.papeis_do_colaborador(
+                cmd.collaborator_id, papel=cmd.funcao.value
+            )
         garantir_sem_sobreposicao(
             nova,
             [_intervalo(m.valid_from, m.valid_to) for m in mesmas],
@@ -166,9 +178,7 @@ class CloseCollaboratorFunctionHandler:
                 f"({alvo.valid_from.isoformat()})."
             )
 
-        await self._colaboradores.encerrar_papel(
-            function_id=cmd.function_id, valid_to=cmd.valid_to
-        )
+        await self._colaboradores.encerrar_papel(function_id=cmd.function_id, valid_to=cmd.valid_to)
 
         self._audit.registrar(
             module=MODULO,

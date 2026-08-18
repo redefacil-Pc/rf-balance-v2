@@ -27,6 +27,7 @@ from app.modules.identity.api.dependencies import (
     require_permission,
 )
 from app.modules.identity.api.schemas.user import (
+    PasswordResetRequest,
     PasswordResetResponse,
     RoleResponse,
     SetRolesRequest,
@@ -123,9 +124,7 @@ async def detalhar(
 async def criar(
     body: UserRequest,
     request: Request,
-    ator: Annotated[
-        User, Depends(require_permission("users:write", "collaborators:write"))
-    ],
+    ator: Annotated[User, Depends(require_permission("users:write", "collaborators:write"))],
     handler: Annotated[CreateUserHandler, Depends(get_create_user_handler)],
 ) -> UserCreatedResponse:
     colaborador = None
@@ -180,6 +179,8 @@ async def alterar(
             user_id=user_id,
             email=body.email,
             full_name=body.full_name,
+            papeis=tuple(body.roles) if body.roles is not None else None,
+            ativo=body.is_active,
             ator=ator.id,
             correlation_id=getattr(request.state, "correlation_id", None),
         )
@@ -233,10 +234,18 @@ async def redefinir_senha(
     request: Request,
     ator: Annotated[User, Depends(require_permission("users:write"))],
     handler: Annotated[ResetUserPasswordHandler, Depends(get_reset_password_handler)],
+    body: PasswordResetRequest | None = None,
 ) -> PasswordResetResponse:
+    """Define a senha ou gera uma provisória.
+
+    Corpo opcional: sem ele o sistema gera, que é o comportamento de antes.
+    """
+    pedido = body or PasswordResetRequest()
     resultado = await handler.execute(
         ResetUserPassword(
             user_id=user_id,
+            senha=pedido.password,
+            exigir_troca=pedido.require_change,
             ator=ator.id,
             correlation_id=getattr(request.state, "correlation_id", None),
         )
@@ -245,4 +254,5 @@ async def redefinir_senha(
         id=resultado.id,
         email=resultado.email,
         temporary_password=resultado.senha_provisoria,
+        must_change_password=resultado.exige_troca,
     )

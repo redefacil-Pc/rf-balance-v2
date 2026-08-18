@@ -9,6 +9,7 @@ a alteração não acontece — duas telas abertas não se sobrescrevem em silê
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
@@ -79,7 +80,7 @@ class UpdateProposalHandler:
             raise PropostaNaoEncontradaError(f"Proposta {cmd.proposal_id} não encontrada.")
 
         await self._periodos.garantir_aberto(proposta.business_date)
-        await self._validar_colaboradores(cmd)
+        await self._validar_colaboradores(cmd, proposta.business_date)
 
         anterior = {
             "operation_amount": str(proposta.operation_amount),
@@ -143,12 +144,20 @@ class UpdateProposalHandler:
         except ValueError as exc:
             raise TpsInvalidoError(str(exc)) from exc
 
-    async def _validar_colaboradores(self, cmd: UpdateProposal) -> None:
-        for papel, colaborador_id in (
-            ("BKO", cmd.bko_collaborator_id),
-            ("finalização", cmd.finalizer_collaborator_id),
+    async def _validar_colaboradores(self, cmd: UpdateProposal, referencia: date) -> None:
+        for rotulo, papel, colaborador_id in (
+            ("BKO", "BKO", cmd.bko_collaborator_id),
+            ("finalização", "FINALIZACAO", cmd.finalizer_collaborator_id),
         ):
             if colaborador_id is None:
                 continue
-            if await self._colaboradores.buscar_por_id(colaborador_id) is None:
-                raise ParticipanteInvalidoError(f"Colaborador de {papel} não encontrado.")
+            colaborador = await self._colaboradores.buscar_por_id(colaborador_id)
+            if colaborador is None or not colaborador.is_active:
+                raise ParticipanteInvalidoError(
+                    f"Colaborador de {rotulo} não encontrado ou inativo."
+                )
+            papeis = await self._colaboradores.papeis_vigentes_em(colaborador_id, referencia)
+            if not any(item.role == papel for item in papeis):
+                raise ParticipanteInvalidoError(
+                    f"O colaborador não possui função de {rotulo} vigente na data do negócio."
+                )

@@ -7,8 +7,9 @@ O campo `document` na resposta vem **mascarado** quando quem consulta não tem
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.modules.organization.domain.value_objects.papel_de_colaborador import (
     PapelDeColaborador,
@@ -62,6 +63,9 @@ class CollaboratorResponse(BaseModel):
     document_type: str
     #: conta de acesso vinculada; nulo para quem não usa o sistema
     user_id: int | None = None
+    user_full_name: str | None = None
+    user_email: str | None = None
+    user_is_active: bool | None = None
 
 
 class DeactivateCollaboratorRequest(BaseModel):
@@ -69,6 +73,13 @@ class DeactivateCollaboratorRequest(BaseModel):
 
     deactivated_on: date
     #: motivo é obrigatório (seção 7.2) e vai para a auditoria
+    reason: str = Field(min_length=3, max_length=255)
+
+
+class ActivateCollaboratorRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    activated_on: date
     reason: str = Field(min_length=3, max_length=255)
 
 
@@ -82,6 +93,20 @@ class UpdateCollaboratorRequest(BaseModel):
     email: str | None = Field(default=None, max_length=320)
     phone: str | None = Field(default=None, max_length=30)
     payment_key: PaymentKeyRequest | None = None
+    consultant_modality: Literal["CONSULTOR", "CONSULTOR_MEI_ESCALONADO"] | None = None
+    modality_valid_from: date | None = None
+    modality_reason: str | None = Field(default=None, min_length=3, max_length=255)
+
+    @model_validator(mode="after")
+    def modalidade_completa(self) -> Self:
+        valores = (self.consultant_modality, self.modality_valid_from, self.modality_reason)
+        if any(valor is not None for valor in valores) and not all(
+            valor is not None for valor in valores
+        ):
+            raise ValueError(
+                "Para alterar a modalidade, informe modalidade, início da vigência e motivo."
+            )
+        return self
 
 
 class CollaboratorDetailResponse(BaseModel):

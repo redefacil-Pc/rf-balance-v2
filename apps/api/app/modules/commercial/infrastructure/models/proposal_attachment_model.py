@@ -41,7 +41,5 @@ class ProposalAttachmentModel(Base):
     storage_key: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
 
-    uploaded_at: Mapped[datetime] = mapped_column(
-        UtcDateTime, nullable=False, server_default=AGORA
-    )
+    uploaded_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False, server_default=AGORA)
     uploaded_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

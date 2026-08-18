@@ -91,9 +91,7 @@ class SqlUserRepository:
             consulta = consulta.where(UserModel.id != exceto)
         return await self._session.scalar(consulta) is not None
 
-    async def definir_senha(
-        self, user_id: int, *, novo_hash: str, exigir_troca: bool
-    ) -> None:
+    async def definir_senha(self, user_id: int, *, novo_hash: str, exigir_troca: bool) -> None:
         await self._session.execute(
             update(UserModel)
             .where(UserModel.id == user_id)
@@ -113,9 +111,7 @@ class SqlUserRepository:
     async def substituir_papeis(self, user_id: int, role_ids: Sequence[int]) -> None:
         """Troca o conjunto inteiro: a intenção do cliente é o estado final,
         não um delta — assim duas telas não somam papéis sem querer."""
-        await self._session.execute(
-            delete(UserRoleModel).where(UserRoleModel.user_id == user_id)
-        )
+        await self._session.execute(delete(UserRoleModel).where(UserRoleModel.user_id == user_id))
         for role_id in role_ids:
             self._session.add(UserRoleModel(user_id=user_id, role_id=role_id))
         await self._session.flush()

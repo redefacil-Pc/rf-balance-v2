@@ -55,27 +55,70 @@ class Pessoa:
     nome: str
     documento: str
     funcao: str
+    regime: RegimeTributario
     #: `None` = não acessa o sistema, como o BKO — entra só como cadastro
     perfis: tuple[str, ...] | None
     email: str = ""
 
 
 PESSOAS: tuple[Pessoa, ...] = (
-    Pessoa("Ana Operacional", "529.982.247-25", "FINALIZACAO", ("OPERACIONAL",),
-           "ana.operacional@rfbalance.local"),
-    Pessoa("Bruno Lider", "390.533.447-05", "LIDER", ("LIDERANCA",),
-           "bruno.lider@rfbalance.local"),
-    Pessoa("Carla Consultora", "168.995.350-09", "CONSULTOR", ("CONSULTOR",),
-           "carla.consultora@rfbalance.local"),
-    Pessoa("Diego MEI 2", "111.444.777-35", "CONSULTOR_MEI_ESCALONADO", ("CONSULTOR",),
-           "diego.mei@rfbalance.local"),
-    Pessoa("Elena Lider MEI", "298.213.940-51", "LIDER_MEI_GERAL", ("LIDERANCA",),
-           "elena.meigeral@rfbalance.local"),
-    Pessoa("Fabio Lider Final", "693.994.290-40", "LIDER_FINALIZACAO", ("LIDERANCA",),
-           "fabio.liderfinal@rfbalance.local"),
-    Pessoa("Gisele BKO", "021.965.940-08", "BKO", None),
-    Pessoa("Helio Financeiro", "144.171.100-77", "FINALIZACAO", ("FINANCEIRO",),
-           "helio.financeiro@rfbalance.local"),
+    Pessoa(
+        "Ana Operacional",
+        "529.982.247-25",
+        "FINALIZACAO",
+        RegimeTributario.MEI,
+        ("OPERACIONAL",),
+        "ana.operacional@rfbalance.local",
+    ),
+    Pessoa(
+        "Bruno Lider",
+        "390.533.447-05",
+        "LIDER",
+        RegimeTributario.MEI,
+        ("LIDERANCA",),
+        "bruno.lider@rfbalance.local",
+    ),
+    Pessoa(
+        "Carla Consultora",
+        "168.995.350-09",
+        "CONSULTOR",
+        RegimeTributario.MEI,
+        ("CONSULTOR",),
+        "carla.consultora@rfbalance.local",
+    ),
+    Pessoa(
+        "Diego Consultor Escalonado",
+        "111.444.777-35",
+        "CONSULTOR_MEI_ESCALONADO",
+        RegimeTributario.MEI,
+        ("CONSULTOR",),
+        "diego.mei@rfbalance.local",
+    ),
+    Pessoa(
+        "Elena Lider MEI",
+        "298.213.940-51",
+        "LIDER_MEI_GERAL",
+        RegimeTributario.MEI,
+        ("LIDERANCA",),
+        "elena.meigeral@rfbalance.local",
+    ),
+    Pessoa(
+        "Fabio Lider Final",
+        "693.994.290-40",
+        "LIDER_FINALIZACAO",
+        RegimeTributario.CLT,
+        ("LIDERANCA",),
+        "fabio.liderfinal@rfbalance.local",
+    ),
+    Pessoa("Gisele BKO", "021.965.940-08", "BKO", RegimeTributario.MEI, None),
+    Pessoa(
+        "Helio Financeiro",
+        "144.171.100-77",
+        "FINALIZACAO",
+        RegimeTributario.CLT,
+        ("FINANCEIRO",),
+        "helio.financeiro@rfbalance.local",
+    ),
 )
 
 
@@ -124,7 +167,7 @@ async def executar(company_id: int = 1, unit_id: int | None = 1) -> int:
                     unit_id=unit_id,
                     full_name=pessoa.nome,
                     documento=pessoa.documento,
-                    regime=RegimeTributario.CLT,
+                    regime=pessoa.regime,
                     papeis=(
                         PapelSolicitado(
                             papel=PapelDeColaborador(pessoa.funcao), valid_from=VIGENTE_DESDE

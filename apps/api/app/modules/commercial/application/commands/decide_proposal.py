@@ -15,10 +15,15 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
+from app.modules.commercial.application.ports.receipt_recognizer import ReceiptRecognizer
 from app.modules.commercial.domain.errors import PropostaNaoEncontradaError
 from app.modules.commercial.infrastructure.repositories.sql_proposal_repository import (
     SqlProposalRepository,
 )
+from app.modules.commissions.application.standard_commission_engine import (
+    StandardCommissionEngine,
+)
+from app.platform.bus.outbox_recorder import SqlOutboxRecorder
 from app.platform.db.session.unit_of_work import UnitOfWork
 from app.platform.time.clock import Clock
 
@@ -55,12 +60,18 @@ class DecideProposalHandler:
         *,
         uow: UnitOfWork,
         propostas: SqlProposalRepository,
+        recebimentos: ReceiptRecognizer,
+        comissoes: StandardCommissionEngine,
         audit: AuditRecorder,
+        outbox: SqlOutboxRecorder,
         clock: Clock,
     ) -> None:
         self._uow = uow
         self._propostas = propostas
+        self._recebimentos = recebimentos
+        self._comissoes = comissoes
         self._audit = audit
+        self._outbox = outbox
         self._clock = clock
 
     async def execute(self, cmd: DecideProposal) -> PropostaDecidida:
@@ -71,7 +82,15 @@ class DecideProposalHandler:
         if cmd.decisao is Decisao.APROVAR:
             proposta.aprovar()
             acao = "proposal.approved"
-            payload: dict[str, object] = {}
+            # aprovar é conferir no extrato o que a Finalização declarou: o
+            # dinheiro passa a valer aqui, no mesmo commit, e não numa segunda
+            # decisão sobre o mesmo valor
+            total = await self._recebimentos.reconhecer(cmd.proposal_id, ator=cmd.ator)
+            proposta.registrar_total_recebido(total)
+            await self._comissoes.gerar_para_proposta(
+                cmd.proposal_id, correlation_id=cmd.correlation_id
+            )
+            payload: dict[str, object] = {"recebimentos_reconhecidos": str(total)}
         else:
             proposta.rejeitar(cmd.motivo or "")
             acao = "proposal.rejected"
@@ -88,6 +107,17 @@ class DecideProposalHandler:
             module=MODULO,
             action=acao,
             actor_user_id=cmd.ator,
+            aggregate_type="proposal",
+            aggregate_id=str(cmd.proposal_id),
+            correlation_id=cmd.correlation_id,
+            payload=payload,
+        )
+        self._outbox.registrar(
+            event_type=(
+                "commercial.proposal_approved.v1"
+                if cmd.decisao is Decisao.APROVAR
+                else "commercial.proposal_rejected.v1"
+            ),
             aggregate_type="proposal",
             aggregate_id=str(cmd.proposal_id),
             correlation_id=cmd.correlation_id,

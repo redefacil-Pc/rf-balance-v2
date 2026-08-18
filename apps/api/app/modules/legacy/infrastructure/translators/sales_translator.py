@@ -36,9 +36,7 @@ def traduzir(linha: LinhaLegada) -> tuple[CandidatoAProposta | None, list[Issue]
     operacao = leitor.dinheiro(linha.get("valor_operacao"), campo="valor_operacao")
     tps = leitor.tps(linha.get("tps_percentage"), campo="tps_percentage")
     data = leitor.data(linha.get("data_pag"), campo="data_pag")
-    comissionavel = leitor.dinheiro(
-        linha.get("valor_comissionavel"), campo="valor_comissionavel"
-    )
+    comissionavel = leitor.dinheiro(linha.get("valor_comissionavel"), campo="valor_comissionavel")
 
     if consultor is None:
         problemas.append(

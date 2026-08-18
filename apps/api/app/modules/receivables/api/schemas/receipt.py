@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,15 +22,18 @@ class ReceiptReversalRequest(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     reason: str = Field(min_length=3, max_length=255)
     business_date: date
+    amount: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=2)
 
 
 class ReceiptResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
     id: int
     proposal_id: int
+    proposal_approval_status: str
     customer_name: str
     amount: str
     business_date: date
+    payment_datetime: datetime | None
     payment_method: str
     reference: str | None
     notes: str | None
@@ -42,6 +46,8 @@ class ReceiptResponse(BaseModel):
     decided_at: datetime | None
     decided_by: int | None
     reversed: bool
+    reversed_amount: str
+    net_amount: str
     reversal_reason: str | None
 
 

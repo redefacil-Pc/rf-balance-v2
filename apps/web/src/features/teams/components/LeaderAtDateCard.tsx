@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useCollaborators } from '@/features/collaborators/queries/useCollaborators';
 import { useAssignmentHistory, useLeaderAtDate } from '@/features/teams/queries/useAssignments';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
+import { TIPOS_DE_VINCULO, type TipoDeVinculo } from '@/shared/types/organization';
 
 const HOJE = new Date().toISOString().slice(0, 10);
 
@@ -14,13 +15,14 @@ const HOJE = new Date().toISOString().slice(0, 10);
 export function LeaderAtDateCard() {
   const [consultorId, setConsultorId] = useState<number | undefined>();
   const [data, setData] = useState(HOJE);
+  const [assignmentType, setAssignmentType] = useState<TipoDeVinculo>('COMERCIAL');
 
   const colaboradores = useCollaborators({ only_active: true });
   const opcoes = (colaboradores.data?.pages ?? [])
     .flatMap((pagina) => pagina.items)
     .map((c) => ({ value: String(c.id), label: c.full_name }));
 
-  const lider = useLeaderAtDate(consultorId, data, 'COMERCIAL');
+  const lider = useLeaderAtDate(consultorId, data, assignmentType);
   const historico = useAssignmentHistory(consultorId);
 
   return (
@@ -44,6 +46,11 @@ export function LeaderAtDateCard() {
           value={data}
           onChange={(evento) => setData(evento.currentTarget.value)}
         />
+        <Select label="Tipo de vínculo" data={TIPOS_DE_VINCULO.map((tipo) => ({
+          value: tipo,
+          label: tipo.replaceAll('_', ' '),
+        }))} value={assignmentType}
+          onChange={(value) => value && setAssignmentType(value as TipoDeVinculo)} />
       </Group>
 
       {!consultorId ? (
@@ -54,7 +61,7 @@ export function LeaderAtDateCard() {
         <Stack gap="md">
           <div>
             <Text size="sm" fw={600} mb={4}>
-              Líder comercial em {data}
+              Líder de {assignmentType.replaceAll('_', ' ')} em {data}
             </Text>
             {lider.isPending ? (
               <Text size="sm" c="dimmed">
@@ -63,9 +70,8 @@ export function LeaderAtDateCard() {
             ) : lider.data ? (
               <Group gap="xs">
                 <Badge variant="light">#{lider.data.leader_id}</Badge>
-                <Text size="sm">
-                  vínculo de {lider.data.start_date} a {lider.data.end_date ?? 'hoje'}
-                </Text>
+                <Text size="sm">{opcoes.find((item) => item.value === String(lider.data?.leader_id))?.label
+                  ?? `#${lider.data.leader_id}`} · vínculo de {lider.data.start_date} a {lider.data.end_date ?? 'hoje'}</Text>
               </Group>
             ) : (
               <Text size="sm" c="dimmed">

@@ -5,7 +5,9 @@ Ecossistema de operação comercial, recebimentos, comissionamento e fechamento 
 - Especificação normativa: [08-BLUEPRINT-TECNICO-RECONSTRUCAO-ECOSSISTEMA.md](08-BLUEPRINT-TECNICO-RECONSTRUCAO-ECOSSISTEMA.md)
 - Plano de execução: [09-PLANO-IMPLEMENTACAO-FASEADO.md](09-PLANO-IMPLEMENTACAO-FASEADO.md)
 
-Estado atual: **F1 e F2 concluídas; primeira fatia vertical da F3 entregue**.
+Estado atual: **F1, F2 e F3 concluídas no código e validadas localmente**. A
+validação operacional do setor piloto em produção-staging permanece como gate
+de implantação, não como pendência de implementação.
 
 **F1 — fundação**
 
@@ -33,9 +35,26 @@ Estado atual: **F1 e F2 concluídas; primeira fatia vertical da F3 entregue**.
 - Fila de exceção em `legacy_import_issues` para tudo que exigiria adivinhação: documento inválido, `role` fora do catálogo, BKO/finalização citados por nome que não resolve, e as estruturas duplicadas `sales`/`propostas`, que nunca viram proposta canônica sozinhas.
 - **Não escreve** no modelo canônico: pedir carga real levanta erro explícito, e um teste prova que as tabelas continuam vazias. [Runbook](docs/runbooks/importacao-legado.md).
 
-**Qualidade:** suítes unitária e de integração (MySQL e Redis reais), 69 testes de frontend, `mypy --strict`, Ruff e `alembic check` como bloqueios de qualidade.
+**Qualidade:** 130 testes unitários, 142 testes de integração (MySQL, Redis e
+storage reais) e 74 testes de frontend, além de `mypy --strict`, Ruff, build do
+frontend e `alembic check` como bloqueios de qualidade.
 
-**F3 em andamento.** Recebimentos já têm comprovante obrigatório, idempotência, aprovação exclusiva do Financeiro, bloqueio de autoaprovação e estorno compensatório. Somente Financeiro e Operacional com função vigente de Finalização podem lançar. Para os jobs assíncronos, o [ADR-0004](docs/adr/README.md) (biblioteca de fila) segue pendente.
+**F3 — recebíveis concluída.** Recebimentos têm comprovante obrigatório,
+horário efetivo, idempotência, conferência exclusiva do Financeiro, bloqueio de
+autoconferência e estornos compensatórios totais ou parciais. Pagamento,
+recálculo da proposta, auditoria e outbox formam uma única transação. O worker
+despacha a outbox via Redis Streams conforme os [ADRs 0004 e
+0005](docs/adr/README.md). Somente Financeiro e Operacional com função vigente
+de Finalização podem declarar recebimento.
+
+O relatório de encerramento e as evidências estão em
+[docs/architecture/fechamento-f1-f3.md](docs/architecture/fechamento-f1-f3.md).
+
+**F4 iniciada.** A primeira fatia do motor de comissão do consultor padrão
+MEI/CLT já materializa snapshot e ledger no reconhecimento do recebimento, com
+débito compensatório em estornos. A tela de regras permite criar rascunhos,
+editar faixas MEI/CLT e ativar novas versões com vigência futura. Veja
+[docs/architecture/f4-motor-comissao.md](docs/architecture/f4-motor-comissao.md).
 
 ## Começando
 

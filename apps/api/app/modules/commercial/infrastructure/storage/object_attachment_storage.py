@@ -27,9 +27,7 @@ class ObjectAttachmentStorage:
         )
 
     async def ler(self, chave: str) -> bytes:
-        resposta = await asyncio.to_thread(
-            self._cliente.get_object, Bucket=self._bucket, Key=chave
-        )
+        resposta = await asyncio.to_thread(self._cliente.get_object, Bucket=self._bucket, Key=chave)
         corpo: bytes = await asyncio.to_thread(resposta["Body"].read)
         return corpo
 

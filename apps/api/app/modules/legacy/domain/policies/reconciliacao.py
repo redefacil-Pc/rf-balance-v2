@@ -46,9 +46,7 @@ class TotaisDaOrigem:
         }
 
 
-def totalizar(
-    origem: str, *, lidos: int, candidatos: list[CandidatoAProposta]
-) -> TotaisDaOrigem:
+def totalizar(origem: str, *, lidos: int, candidatos: list[CandidatoAProposta]) -> TotaisDaOrigem:
     operacao = Dinheiro.zero()
     comissao_legada = Dinheiro.zero()
     comissao_calculada = Dinheiro.zero()

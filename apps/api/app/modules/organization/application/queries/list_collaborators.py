@@ -33,6 +33,9 @@ class ColaboradorEmLista:
     document_type: str
     #: conta de acesso vinculada; nulo para quem não usa o sistema
     user_id: int | None
+    user_full_name: str | None
+    user_email: str | None
+    user_is_active: bool | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +64,7 @@ class ListCollaboratorsHandler:
         papeis = await self._colaboradores.papeis_vigentes_de_varios(
             [modelo.id for modelo in encontrados], query.referencia
         )
+        contas = await self._colaboradores.contas_de_varios([modelo.id for modelo in encontrados])
 
         itens = [
             ColaboradorEmLista(
@@ -74,6 +78,9 @@ class ListCollaboratorsHandler:
                 document=self._documento(modelo.document_encrypted, query.pode_ver_pii),
                 document_type=modelo.document_type,
                 user_id=modelo.user_id,
+                user_full_name=contas.get(modelo.id, (0, "", "", False))[1] or None,
+                user_email=contas.get(modelo.id, (0, "", "", False))[2] or None,
+                user_is_active=(contas[modelo.id][3] if modelo.id in contas else None),
             )
             for modelo in encontrados
         ]

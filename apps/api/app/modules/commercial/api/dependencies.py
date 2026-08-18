@@ -42,18 +42,23 @@ from app.modules.commercial.infrastructure.scope.rbac_proposal_scope import Rbac
 from app.modules.commercial.infrastructure.storage.object_attachment_storage import (
     ObjectAttachmentStorage,
 )
+from app.modules.commissions.application.standard_commission_engine import (
+    StandardCommissionEngine,
+)
 from app.modules.identity.api.dependencies import CurrentUser, Uow
 from app.modules.organization.infrastructure.repositories.sql_collaborator_repository import (
     SqlCollaboratorRepository,
 )
+from app.modules.receivables.infrastructure.recognizers.sql_receipt_recognizer import (
+    SqlReceiptRecognizer,
+)
 from app.modules.teams.infrastructure.repositories.sql_team_assignment_repository import (
     SqlTeamAssignmentRepository,
 )
+from app.platform.bus.outbox_recorder import SqlOutboxRecorder
 
 
-async def get_proposal_scope(
-    request: Request, uow: Uow, ator: CurrentUser
-) -> EscopoDePropostas:
+async def get_proposal_scope(request: Request, uow: Uow, ator: CurrentUser) -> EscopoDePropostas:
     """Recorte de leitura do usuário logado, resolvido uma vez por request.
 
     Depende de `CurrentUser`, que o FastAPI já resolveu para o `require_permission`
@@ -134,16 +139,22 @@ def get_submit_proposal_handler(request: Request, uow: Uow) -> SubmitProposalHan
         uow=uow,
         propostas=SqlProposalRepository(uow.session, request.app.state.pii_cipher),
         anexos=SqlProposalAttachmentRepository(uow.session),
+        recebimentos=SqlReceiptRecognizer(uow.session, request.app.state.clock.now()),
         audit=SqlAuditRecorder(uow.session, request.app.state.clock),
         clock=request.app.state.clock,
     )
 
 
 def get_decide_proposal_handler(request: Request, uow: Uow) -> DecideProposalHandler:
+    outbox = SqlOutboxRecorder(uow.session, request.app.state.clock)
     return DecideProposalHandler(
         uow=uow,
         propostas=SqlProposalRepository(uow.session, request.app.state.pii_cipher),
+        # ponto de composição: `commercial` conhece a porta, não o `receivables`
+        recebimentos=SqlReceiptRecognizer(uow.session, request.app.state.clock.now()),
+        comissoes=StandardCommissionEngine(uow.session, outbox),
         audit=SqlAuditRecorder(uow.session, request.app.state.clock),
+        outbox=outbox,
         clock=request.app.state.clock,
     )
 
@@ -175,9 +186,7 @@ def get_list_attachments_handler(request: Request, uow: Uow) -> ListProposalAtta
     )
 
 
-def get_get_attachment_content_handler(
-    request: Request, uow: Uow
-) -> GetAttachmentContentHandler:
+def get_get_attachment_content_handler(request: Request, uow: Uow) -> GetAttachmentContentHandler:
     return GetAttachmentContentHandler(
         propostas=SqlProposalRepository(uow.session, request.app.state.pii_cipher),
         anexos=SqlProposalAttachmentRepository(uow.session),

@@ -10,6 +10,18 @@ from app.modules.commercial.infrastructure.models.proposal_attachment_model impo
     ProposalAttachmentModel,
 )
 from app.modules.commercial.infrastructure.models.proposal_model import ProposalModel
+from app.modules.commissions.infrastructure.models.commission_models import (
+    CommissionBeneficiaryPolicyModel,
+    CommissionCalculationSnapshotModel,
+    CommissionEntryModel,
+    CommissionManualEntryModel,
+    CommissionPeriodModel,
+    CommissionRuleAssignmentModel,
+    CommissionRuleModel,
+    CommissionRuleSetModel,
+    CommissionSettlementModel,
+    CommissionStrategyConfigModel,
+)
 from app.modules.identity.infrastructure.models.login_attempt_model import LoginAttemptModel
 from app.modules.identity.infrastructure.models.permission_model import PermissionModel
 from app.modules.identity.infrastructure.models.role_model import RoleModel
@@ -37,6 +49,7 @@ from app.modules.receivables.infrastructure.models.receipt_model import (
 )
 from app.modules.teams.infrastructure.models.team_assignment_model import TeamAssignmentModel
 from app.platform.bus.outbox_model import OutboxEventModel
+from app.platform.db.data_integrity_check_model import DataIntegrityCheckModel
 
 __all__ = [
     "AuditEventModel",
@@ -44,7 +57,18 @@ __all__ = [
     "CollaboratorModel",
     "CollaboratorPaymentKeyModel",
     "CollaboratorRoleModel",
+    "CommissionBeneficiaryPolicyModel",
+    "CommissionCalculationSnapshotModel",
+    "CommissionEntryModel",
+    "CommissionManualEntryModel",
+    "CommissionPeriodModel",
+    "CommissionRuleAssignmentModel",
+    "CommissionRuleModel",
+    "CommissionRuleSetModel",
+    "CommissionSettlementModel",
+    "CommissionStrategyConfigModel",
     "CompanyModel",
+    "DataIntegrityCheckModel",
     "LegacyImportIssueModel",
     "LegacyImportRunModel",
     "LoginAttemptModel",

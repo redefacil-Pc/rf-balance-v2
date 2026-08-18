@@ -100,9 +100,7 @@ def _documento(bruto: str | None, legacy_id: str, problemas: list[Issue]) -> Doc
         return None
 
 
-def _papel(
-    bruto: str | None, legacy_id: str, problemas: list[Issue]
-) -> PapelDeColaborador | None:
+def _papel(bruto: str | None, legacy_id: str, problemas: list[Issue]) -> PapelDeColaborador | None:
     texto = (bruto or "").strip().upper()
     try:
         return PapelDeColaborador(texto)

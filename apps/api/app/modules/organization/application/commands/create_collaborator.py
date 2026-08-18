@@ -11,6 +11,7 @@ from datetime import date
 
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
 from app.modules.organization.domain.errors import (
+    ContaInativaError,
     ContaJaVinculadaError,
     DocumentoDuplicadoError,
     DocumentoInvalidoError,
@@ -94,9 +95,7 @@ class CreateCollaboratorHandler:
         self._audit = audit
         self._clock = clock
 
-    async def execute(
-        self, cmd: CreateCollaborator, *, commit: bool = True
-    ) -> ColaboradorCriado:
+    async def execute(self, cmd: CreateCollaborator, *, commit: bool = True) -> ColaboradorCriado:
         documento = self._normalizar_documento(cmd.documento)
         await self._validar_empresa_e_unidade(cmd)
 
@@ -104,7 +103,7 @@ class CreateCollaboratorHandler:
         if await self._colaboradores.existe_documento(hash_do_documento):
             raise DocumentoDuplicadoError()
 
-        self._validar_papeis(cmd.papeis)
+        self._validar_papeis(cmd.papeis, cmd.regime)
         await self._validar_conta(cmd.user_id)
 
         colaborador = await self._colaboradores.criar(
@@ -185,7 +184,7 @@ class CreateCollaboratorHandler:
             raise UnidadeDeOutraEmpresaError("A unidade informada pertence a outra empresa.")
 
     @staticmethod
-    def _validar_papeis(papeis: tuple[PapelSolicitado, ...]) -> None:
+    def _validar_papeis(papeis: tuple[PapelSolicitado, ...], regime: RegimeTributario) -> None:
         """Mesmo papel não pode ter vigências sobrepostas (ADR-0013)."""
         por_papel: dict[str, list[DateRange]] = {}
         for solicitado in papeis:
@@ -196,12 +195,33 @@ class CreateCollaboratorHandler:
             )
             existentes.append(intervalo)
 
+        modalidades = {
+            PapelDeColaborador.CONSULTOR,
+            PapelDeColaborador.CONSULTOR_MEI_ESCALONADO,
+        }
+        intervalos_de_consultor: list[DateRange] = []
+        for solicitado in papeis:
+            if solicitado.papel not in modalidades:
+                continue
+            intervalo = DateRange(solicitado.valid_from, solicitado.valid_to)
+            garantir_sem_sobreposicao(
+                intervalo,
+                intervalos_de_consultor,
+                descricao="As modalidades MEI padrão e MEI 2",
+            )
+            intervalos_de_consultor.append(intervalo)
+
     async def _validar_conta(self, user_id: int | None) -> None:
         """Uma conta pertence a um colaborador só: duas pessoas no mesmo login
         tornariam "meus resultados" ambíguo, e é esse recorte que decide o que
         cada um enxerga."""
         if user_id is None:
             return
+        situacao = await self._colaboradores.situacao_da_conta(user_id)
+        if situacao is None:
+            raise RecursoNaoEncontradoError("Conta de acesso não encontrada.")
+        if not situacao:
+            raise ContaInativaError("Reative a conta antes de vinculá-la ao colaborador.")
         dono = await self._colaboradores.colaborador_da_conta(user_id)
         if dono is not None:
             raise ContaJaVinculadaError(f"A conta já pertence ao colaborador {dono.full_name}.")

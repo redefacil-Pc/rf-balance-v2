@@ -26,6 +26,7 @@ from app.modules.identity.domain.errors import (
     UsuarioNaoEncontradoError,
     UsuarioSemPapelError,
 )
+from app.modules.identity.domain.policies import password_policy
 from app.modules.identity.domain.value_objects.email_address import EmailAddress
 from app.modules.identity.infrastructure.models.user_model import UserModel
 from app.modules.identity.infrastructure.repositories.sql_session_repository import (
@@ -44,6 +45,8 @@ class UpdateUser:
     user_id: int
     email: str
     full_name: str
+    papeis: tuple[str, ...] | None = None
+    ativo: bool | None = None
     ator: int | None = None
     correlation_id: str | None = None
 
@@ -67,6 +70,13 @@ class SetUserStatus:
 @dataclass(frozen=True, slots=True)
 class ResetUserPassword:
     user_id: int
+    #: `None` gera uma provisória. Definida, passa pela mesma política de senha
+    #: que vale para todo mundo — administrador não é exceção à regra de força.
+    senha: str | None = None
+    #: quem administra passa a conhecer a senha em uso, então a troca no próximo
+    #: acesso é o padrão. Desligar é decisão consciente, para conta de serviço
+    #: ou ambiente de teste.
+    exigir_troca: bool = True
     ator: int | None = None
     correlation_id: str | None = None
 
@@ -75,7 +85,11 @@ class ResetUserPassword:
 class SenhaRedefinida:
     id: int
     email: str
-    senha_provisoria: str
+    #: só volta preenchida quando o sistema gerou. Senha escolhida por quem
+    #: administra não é devolvida: quem a definiu já a conhece, e ecoá-la só
+    #: acrescentaria uma cópia do segredo em log, cache e histórico de rede.
+    senha_provisoria: str | None
+    exige_troca: bool
 
 
 class _BaseDeUsuario:
@@ -136,8 +150,46 @@ class UpdateUserHandler(_BaseDeUsuario):
         if await self._users.existe_email(email, exceto=cmd.user_id):
             raise EmailJaCadastradoError(email.valor)
 
+        anteriores_papeis = (await self._users.papeis_de_varios([cmd.user_id])).get(
+            cmd.user_id, []
+        )
+        finais_papeis = anteriores_papeis
+        role_ids: list[int] | None = None
+        if cmd.papeis is not None:
+            if cmd.ator == cmd.user_id:
+                raise AutoAlteracaoProibidaError(
+                    "Você não pode alterar os próprios papéis. Peça a outro administrador."
+                )
+            if not cmd.papeis:
+                raise UsuarioSemPapelError()
+            encontrados = await self._users.papeis_por_codigo(cmd.papeis)
+            faltando = sorted(set(cmd.papeis) - set(encontrados))
+            if faltando:
+                raise PapelInexistenteError(f"Papel não encontrado: {', '.join(faltando)}.")
+            finais_papeis = sorted(set(cmd.papeis))
+            role_ids = [encontrados[code].id for code in finais_papeis]
+
+        if cmd.ativo is not None and cmd.ator == cmd.user_id and not cmd.ativo:
+            raise AutoAlteracaoProibidaError(
+                "Você não pode desativar a própria conta. Peça a outro administrador."
+            )
+
+        situacao_anterior = modelo.is_active
         anterior = {"email": modelo.email, "full_name": modelo.full_name}
         await self._users.atualizar_cadastro(cmd.user_id, email=email, full_name=nome)
+        papeis_mudaram = role_ids is not None and finais_papeis != anteriores_papeis
+        situacao_mudou = cmd.ativo is not None and cmd.ativo != situacao_anterior
+        if papeis_mudaram and role_ids is not None:
+            await self._users.substituir_papeis(cmd.user_id, role_ids)
+        if situacao_mudou and cmd.ativo is not None:
+            await self._users.definir_situacao(cmd.user_id, ativo=cmd.ativo)
+
+        hashes: list[str] = []
+        encerradas = 0
+        if papeis_mudaram or (situacao_mudou and cmd.ativo is False):
+            hashes, encerradas = await self._revogar_sessoes(
+                cmd.user_id, "cadastro de acesso alterado"
+            )
 
         self._audit.registrar(
             module=MODULO,
@@ -146,9 +198,23 @@ class UpdateUserHandler(_BaseDeUsuario):
             aggregate_type="user",
             aggregate_id=str(cmd.user_id),
             correlation_id=cmd.correlation_id,
-            payload={"antes": anterior, "depois": {"email": email.valor, "full_name": nome}},
+            payload={
+                "antes": {
+                    **anterior,
+                    "roles": anteriores_papeis,
+                    "is_active": situacao_anterior,
+                },
+                "depois": {
+                    "email": email.valor,
+                    "full_name": nome,
+                    "roles": finais_papeis,
+                    "is_active": cmd.ativo if cmd.ativo is not None else situacao_anterior,
+                },
+                "sessoes_encerradas": encerradas,
+            },
         )
         await self._uow.commit()
+        await self._limpar_cache(hashes)
 
 
 class SetUserRolesHandler(_BaseDeUsuario):
@@ -169,9 +235,7 @@ class SetUserRolesHandler(_BaseDeUsuario):
 
         anteriores = (await self._users.papeis_de_varios([cmd.user_id])).get(cmd.user_id, [])
         finais = sorted(set(cmd.papeis))
-        await self._users.substituir_papeis(
-            cmd.user_id, [encontrados[code].id for code in finais]
-        )
+        await self._users.substituir_papeis(cmd.user_id, [encontrados[code].id for code in finais])
         # papel novo só vale na próxima autenticação: a sessão em curso carrega
         # as permissões antigas em cache
         hashes, encerradas = await self._revogar_sessoes(cmd.user_id, "papéis alterados")
@@ -246,9 +310,19 @@ class ResetUserPasswordHandler(_BaseDeUsuario):
     async def execute(self, cmd: ResetUserPassword) -> SenhaRedefinida:
         modelo = await self._exigir(cmd.user_id)
 
-        senha = secrets.token_urlsafe(_BYTES_DA_SENHA)
+        gerada = cmd.senha is None
+        if gerada:
+            senha = secrets.token_urlsafe(_BYTES_DA_SENHA)
+        else:
+            senha = cmd.senha or ""
+            # a política é a mesma de qualquer troca de senha: quem administra
+            # não pode instalar uma senha que o próprio sistema recusaria
+            password_policy.validar(senha)
+
         await self._users.definir_senha(
-            cmd.user_id, novo_hash=self._hasher.gerar(senha), exigir_troca=True
+            cmd.user_id,
+            novo_hash=self._hasher.gerar(senha),
+            exigir_troca=cmd.exigir_troca,
         )
         # senha trocada por administrador costuma ser resposta a conta
         # comprometida: manter a sessão antiga viva anularia o motivo do reset
@@ -261,13 +335,23 @@ class ResetUserPasswordHandler(_BaseDeUsuario):
             aggregate_type="user",
             aggregate_id=str(cmd.user_id),
             correlation_id=cmd.correlation_id,
-            payload={"email": modelo.email, "sessoes_encerradas": encerradas},
+            # como a senha foi definida importa para auditoria; a senha em si
+            # não entra aqui em hipótese alguma
+            payload={
+                "email": modelo.email,
+                "origem": "gerada" if gerada else "definida_pelo_administrador",
+                "exige_troca": cmd.exigir_troca,
+                "sessoes_encerradas": encerradas,
+            },
         )
         await self._uow.commit()
         await self._limpar_cache(hashes)
 
         return SenhaRedefinida(
-            id=cmd.user_id, email=modelo.email, senha_provisoria=senha
+            id=cmd.user_id,
+            email=modelo.email,
+            senha_provisoria=senha if gerada else None,
+            exige_troca=cmd.exigir_troca,
         )
 
 

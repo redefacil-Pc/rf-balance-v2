@@ -15,6 +15,7 @@ from app.modules.organization.infrastructure.repositories.sql_collaborator_repos
     SqlCollaboratorRepository,
 )
 from app.modules.teams.api.schemas.assignment import (
+    ActiveTeamAssignmentResponse,
     AssignLeaderRequest,
     AssignmentResponse,
     CloseAssignmentRequest,
@@ -26,6 +27,7 @@ from app.modules.teams.application.commands.close_assignment import (
     CloseAssignmentHandler,
 )
 from app.modules.teams.application.queries.get_leader_at_date import GetLeaderAtDateHandler
+from app.modules.teams.application.queries.list_active_teams import ListActiveTeamsHandler
 from app.modules.teams.infrastructure.repositories.sql_team_assignment_repository import (
     SqlTeamAssignmentRepository,
 )
@@ -110,6 +112,17 @@ async def lider_na_data(
         return None
     # `asdict`, não `vars`: os DTOs usam `slots=True` e não têm `__dict__`
     return LeaderAtDateResponse(**asdict(resultado))
+
+
+@router.get("/active", response_model=list[ActiveTeamAssignmentResponse])
+async def vinculos_vigentes(
+    _ator: Annotated[User, Depends(require_permission("teams:read"))],
+    uow: Uow,
+    reference_date: Annotated[date, Query()],
+) -> list[ActiveTeamAssignmentResponse]:
+    """Lista todas as equipes vigentes, já com os nomes dos envolvidos."""
+    resultado = await ListActiveTeamsHandler(uow.session).execute(reference_date=reference_date)
+    return [ActiveTeamAssignmentResponse(**asdict(item)) for item in resultado]
 
 
 @router.get("/consultant/{consultant_id}", response_model=list[AssignmentResponse])

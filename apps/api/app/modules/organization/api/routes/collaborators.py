@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from app.modules.identity.api.dependencies import Uow, require_permission
 from app.modules.identity.domain.entities.user import User
 from app.modules.organization.api.dependencies import (
+    get_activate_collaborator_handler,
     get_add_function_handler,
     get_bank_account_handler,
     get_close_function_handler,
@@ -21,6 +22,7 @@ from app.modules.organization.api.dependencies import (
     get_update_collaborator_handler,
 )
 from app.modules.organization.api.schemas.collaborator import (
+    ActivateCollaboratorRequest,
     AddFunctionRequest,
     BankAccountRequest,
     BankAccountResponse,
@@ -42,6 +44,8 @@ from app.modules.organization.application.commands.create_collaborator import (
     PapelSolicitado,
 )
 from app.modules.organization.application.commands.deactivate_collaborator import (
+    ActivateCollaborator,
+    ActivateCollaboratorHandler,
     DeactivateCollaborator,
     DeactivateCollaboratorHandler,
 )
@@ -72,6 +76,9 @@ from app.modules.organization.application.queries.list_collaborators import (
     ListCollaboratorsHandler,
 )
 from app.modules.organization.domain.errors import RecursoNaoEncontradoError
+from app.modules.organization.domain.value_objects.papel_de_colaborador import (
+    PapelDeColaborador,
+)
 from app.modules.organization.infrastructure.repositories.sql_bank_account_repository import (
     SqlBankAccountRepository,
 )
@@ -194,7 +201,34 @@ async def inativar(
             correlation_id=getattr(request.state, "correlation_id", None),
         )
     )
-    return {"id": resultado.id, "closed_assignments": resultado.vinculos_encerrados}
+    return {
+        "id": resultado.id,
+        "closed_assignments": resultado.vinculos_encerrados,
+        "closed_functions": resultado.funcoes_encerradas,
+    }
+
+
+@router.post(
+    "/{collaborator_id}/activation",
+    response_model=None,
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def reativar(
+    collaborator_id: int,
+    body: ActivateCollaboratorRequest,
+    request: Request,
+    ator: Annotated[User, Depends(require_permission("collaborators:write"))],
+    handler: Annotated[ActivateCollaboratorHandler, Depends(get_activate_collaborator_handler)],
+) -> None:
+    await handler.execute(
+        ActivateCollaborator(
+            collaborator_id=collaborator_id,
+            em=body.activated_on,
+            motivo=body.reason,
+            ator=ator.id,
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+    )
 
 
 @router.get("/{collaborator_id}/details", response_model=CollaboratorDetailResponse)
@@ -350,6 +384,11 @@ async def alterar(
             ),
             ator=ator.id,
             correlation_id=getattr(request.state, "correlation_id", None),
+            consultant_modality=(
+                PapelDeColaborador(body.consultant_modality) if body.consultant_modality else None
+            ),
+            modality_valid_from=body.modality_valid_from,
+            modality_reason=body.modality_reason,
         )
     )
 

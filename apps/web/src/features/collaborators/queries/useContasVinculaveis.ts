@@ -10,10 +10,12 @@ export interface ContaVinculavel {
   email: string;
   full_name: string;
   roles: string[];
+  is_active: boolean;
 }
 
 interface Pagina {
   items: ContaVinculavel[];
+  next_cursor?: string | null;
 }
 
 /**
@@ -26,8 +28,22 @@ interface Pagina {
 export function useContasVinculaveis(habilitado = true) {
   return useQuery<Pagina, ApiError>({
     queryKey: collaboratorKeys.contasVinculaveis,
-    queryFn: ({ signal }) =>
-      requisitar<Pagina>('/users?has_collaborator=false&limit=200', { signal }),
+    queryFn: async ({ signal }) => {
+      const items: ContaVinculavel[] = [];
+      let cursor: string | null = null;
+      do {
+        const params = new URLSearchParams({
+          has_collaborator: 'false',
+          is_active: 'true',
+          limit: '200',
+        });
+        if (cursor) params.set('cursor', cursor);
+        const page = await requisitar<Pagina>(`/users?${params}`, { signal });
+        items.push(...page.items);
+        cursor = page.next_cursor ?? null;
+      } while (cursor);
+      return { items, next_cursor: null };
+    },
     enabled: habilitado,
   });
 }

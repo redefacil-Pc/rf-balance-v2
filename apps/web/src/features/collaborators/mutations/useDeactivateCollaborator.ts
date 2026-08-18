@@ -13,6 +13,27 @@ interface Entrada {
 interface Resultado {
   id: number;
   closed_assignments: number;
+  closed_functions: number;
+}
+
+interface Ativacao {
+  id: number;
+  activated_on: string;
+  reason: string;
+}
+
+export function useActivateCollaborator() {
+  const client = useQueryClient();
+  return useMutation<void, ApiError, Ativacao>({
+    mutationFn: ({ id, activated_on, reason }) =>
+      requisitar<void>(`/collaborators/${id}/activation`, {
+        method: 'POST',
+        body: { activated_on, reason },
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: collaboratorKeys.todos });
+    },
+  });
 }
 
 /**
