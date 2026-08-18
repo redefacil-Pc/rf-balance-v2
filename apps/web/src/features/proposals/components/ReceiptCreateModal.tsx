@@ -15,6 +15,7 @@ import { IconPaperclip } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { useCreateReceipt } from '@/features/proposals/mutations/useCreateReceipt';
+import { mascararMoeda, moedaParaDecimal } from '@/shared/formatters/money-mask';
 
 interface Props {
   opened: boolean;
@@ -52,11 +53,16 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
     setIdempotencyKey(crypto.randomUUID());
   }, [opened]);
 
+  // o estado guarda o valor mascarado, que é o que o operador confere; a
+  // conversão para a string decimal da API acontece num ponto só, no envio
+  const decimal = moedaParaDecimal(amount);
+  const valorValido = decimal !== '' && Number(decimal) > 0;
+
   const submit = async () => {
-    if (!amount || !method || !proof) return;
+    if (!valorValido || !method || !proof) return;
     await create.mutateAsync({
       proposalId,
-      amount: amount.replace(',', '.'),
+      amount: decimal,
       businessDate,
       paymentTime,
       paymentMethod: method,
@@ -86,8 +92,10 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
             label="Valor recebido"
             withAsterisk
             placeholder="0,00"
+            inputMode="decimal"
+            leftSection="R$"
             value={amount}
-            onChange={(event) => setAmount(event.currentTarget.value)}
+            onChange={(event) => setAmount(mascararMoeda(event.currentTarget.value))}
           />
           <TextInput
             label="Data do recebimento"
@@ -143,7 +151,7 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
           <Button
             onClick={() => void submit()}
             loading={create.isPending}
-            disabled={!amount || !businessDate || !paymentTime || !method || !proof}
+            disabled={!valorValido || !businessDate || !paymentTime || !method || !proof}
           >
             Declarar recebimento
           </Button>
