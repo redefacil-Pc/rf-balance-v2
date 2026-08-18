@@ -44,10 +44,20 @@ function renderizar() {
   );
 }
 
+/** POSTs de cadastro de proposta.
+ *
+ * Filtra pela rota porque a tela também faz POST em `/commission-preview` para
+ * mostrar a comissão enquanto o operador digita — contar todos os POSTs mediria
+ * a prévia junto e quebraria a cada mudança de UX. */
 function chamadasDePost() {
   return vi
     .mocked(globalThis.fetch)
-    .mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST');
+    .mock.calls.filter(
+      ([url, init]) =>
+        (init as RequestInit | undefined)?.method === 'POST' &&
+        String(url).includes('/proposals') &&
+        !String(url).includes('/commission-preview'),
+    );
 }
 
 describe('ProposalFormModal', () => {

@@ -13,6 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.commercial.infrastructure.models.proposal_model import ProposalModel
 from app.modules.commissions.application.group_commission_engine import GroupCommissionEngine
+from app.modules.commissions.application.rule_loading import (
+    faixas_do_consultor_padrao,
+    politica_do_beneficiario,
+)
 from app.modules.commissions.application.scaled_commission_engine import ScaledCommissionEngine
 from app.modules.commissions.domain.errors import CommissionRuleConfigurationError
 from app.modules.commissions.domain.standard_consultant import (
@@ -24,7 +28,6 @@ from app.modules.commissions.infrastructure.models.commission_models import (
     CommissionCalculationSnapshotModel,
     CommissionEntryModel,
     CommissionPeriodModel,
-    CommissionRuleModel,
     CommissionRuleSetModel,
 )
 from app.modules.organization.infrastructure.models.collaborator_model import CollaboratorModel
@@ -353,61 +356,9 @@ class StandardCommissionEngine:
     async def _policy(
         self, collaborator_id: int, data: date
     ) -> CommissionBeneficiaryPolicyModel | None:
-        policy: CommissionBeneficiaryPolicyModel | None = await self._session.scalar(
-            select(CommissionBeneficiaryPolicyModel)
-            .where(
-                CommissionBeneficiaryPolicyModel.collaborator_id == collaborator_id,
-                CommissionBeneficiaryPolicyModel.valid_from <= data,
-                or_(
-                    CommissionBeneficiaryPolicyModel.valid_to.is_(None),
-                    CommissionBeneficiaryPolicyModel.valid_to >= data,
-                ),
-            )
-            .order_by(CommissionBeneficiaryPolicyModel.valid_from.desc())
-            .limit(1)
-        )
-        return policy
+        return await politica_do_beneficiario(self._session, collaborator_id, data)
 
     async def _configuracao(
         self, data: date, regime: str
     ) -> tuple[CommissionRuleSetModel, list[FaixaConsultorPadrao]]:
-        conjunto = await self._session.scalar(
-            select(CommissionRuleSetModel)
-            .where(
-                CommissionRuleSetModel.strategy == ESTRATEGIA,
-                CommissionRuleSetModel.status == "ACTIVE",
-                CommissionRuleSetModel.valid_from <= data,
-                or_(
-                    CommissionRuleSetModel.valid_to.is_(None),
-                    CommissionRuleSetModel.valid_to >= data,
-                ),
-            )
-            .order_by(CommissionRuleSetModel.valid_from.desc(), CommissionRuleSetModel.id.desc())
-            .limit(1)
-        )
-        if conjunto is None:
-            raise RuntimeError(f"Não há regra {ESTRATEGIA} ativa em {data.isoformat()}.")
-        regras = list(
-            (
-                await self._session.scalars(
-                    select(CommissionRuleModel)
-                    .where(
-                        CommissionRuleModel.rule_set_id == conjunto.id,
-                        CommissionRuleModel.tax_regime == regime,
-                        CommissionRuleModel.role == "CONSULTOR",
-                    )
-                    .order_by(CommissionRuleModel.sort_order)
-                )
-            ).all()
-        )
-        faixas = [
-            FaixaConsultorPadrao(
-                id=regra.id,
-                regime=regra.tax_regime,
-                tps_minimo=regra.tps_min,
-                tps_maximo=regra.tps_max,
-                percentual=regra.percentage,
-            )
-            for regra in regras
-        ]
-        return conjunto, faixas
+        return await faixas_do_consultor_padrao(self._session, ESTRATEGIA, data, regime)

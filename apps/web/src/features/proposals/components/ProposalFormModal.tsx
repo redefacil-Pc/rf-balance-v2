@@ -13,12 +13,14 @@ import {
   type ProposalForm,
   type ProposalFormEntrada,
 } from '@/features/proposals/schemas/proposal-schema';
+import { PreviaDeComissao } from '@/features/proposals/components/PreviaDeComissao';
+import { useCommissionPreview } from '@/features/proposals/queries/useCommissionPreview';
 import { CampoMascarado } from '@/shared/components/CampoMascarado';
 import { ApiError } from '@/shared/api/problem-details';
 import { formatarMoeda } from '@/shared/formatters/currency';
 import { mascararDocumento } from '@/shared/formatters/document-mask';
-import { mascararMoeda } from '@/shared/formatters/money-mask';
-import { mascararPercentual } from '@/shared/formatters/percent-mask';
+import { mascararMoeda, moedaParaDecimal } from '@/shared/formatters/money-mask';
+import { mascararPercentual, percentualParaDecimal } from '@/shared/formatters/percent-mask';
 
 interface Props {
   aberto: boolean;
@@ -57,10 +59,20 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
     handleSubmit,
     reset,
     setError,
+    watch,
     formState: { errors },
   } = useForm<ProposalFormEntrada, unknown, ProposalForm>({
     resolver: zodResolver(proposalSchema),
     defaultValues: VAZIO,
+  });
+
+  // a tela não calcula dinheiro: manda os mesmos valores que gravaria e o
+  // servidor responde rodando o motor de comissão de verdade
+  const previa = useCommissionPreview({
+    consultant_id: watch('consultant_id'),
+    business_date: watch('business_date'),
+    operation_amount: moedaParaDecimal(watch('operation_amount') ?? ''),
+    tps_percentage: percentualParaDecimal(watch('tps_percentage') ?? ''),
   });
 
   const enviar = handleSubmit(async (form) => {
@@ -198,6 +210,10 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
                 error={errors.external_id?.message}
                 {...register('external_id')}
               />
+            </Grid.Col>
+
+            <Grid.Col span={12}>
+              <PreviaDeComissao previa={previa} />
             </Grid.Col>
 
             <Grid.Col span={{ base: 12, sm: 6 }}>

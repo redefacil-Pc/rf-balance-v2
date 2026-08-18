@@ -56,9 +56,16 @@ class _Resultado:
 
 
 class ScaledCommissionEngine:
-    def __init__(self, session: AsyncSession, outbox: SqlOutboxRecorder) -> None:
+    def __init__(self, session: AsyncSession, outbox: SqlOutboxRecorder | None = None) -> None:
         self._session = session
         self._outbox = outbox
+
+    @property
+    def _saida(self) -> SqlOutboxRecorder:
+        """Outbox obrigatório para escrever; leitura pura dispensa."""
+        if self._outbox is None:
+            raise RuntimeError("Motor criado apenas para leitura não registra evento.")
+        return self._outbox
 
     async def gerar_para_proposta(
         self, proposal_id: int, *, correlation_id: str | None
@@ -190,7 +197,7 @@ class ScaledCommissionEngine:
         )
         self._session.add(lancamento)
         await self._session.flush()
-        self._outbox.registrar(
+        self._saida.registrar(
             event_type="commission.entry_reversed.v1",
             aggregate_type="commission_entry",
             aggregate_id=str(lancamento.id),
@@ -288,7 +295,7 @@ class ScaledCommissionEngine:
             self._session.add(lancamento)
             await self._session.flush()
             criadas.append(lancamento.id)
-            self._outbox.registrar(
+            self._saida.registrar(
                 event_type="commission.entry_created.v1",
                 aggregate_type="commission_entry",
                 aggregate_id=str(lancamento.id),
@@ -304,6 +311,19 @@ class ScaledCommissionEngine:
                 },
             )
         return criadas
+
+    async def producao_acumulada_no_mes(self, collaborator_id: int, data: date) -> Decimal:
+        """Produção já reconhecida no mês de `data`, na ordem real de reconhecimento.
+
+        Existe para a prévia de comissão do cadastro da proposta: no escalonado,
+        o percentual depende de onde a produção acumulada já chegou. Reusa a
+        mesma simulação do cálculo efetivo — duplicar a soma aqui seria assinar
+        um segundo motor que diverge do primeiro no primeiro ajuste de regra.
+        """
+        resultados = await self._simular_mes(collaborator_id, data.year, data.month)
+        if not resultados:
+            return Decimal("0")
+        return resultados[-1].calculo.producao_posterior
 
     async def _simular_mes(self, collaborator_id: int, ano: int, mes: int) -> list[_Resultado]:
         inicio, fim = _limites_mes(ano, mes)
@@ -372,7 +392,7 @@ class ScaledCommissionEngine:
             data = contexto.recebimento.business_date
             if data not in cache:
                 config = await self._configuracao(data)
-                cache[data] = (config, _interpretar_configuracao(config.config))
+                cache[data] = (config, interpretar_configuracao_escalonada(config.config))
             config, (faixas_producao, faixas_tps) = cache[data]
             calculo = calcular_consultor_escalonado(
                 valor_operacao=contexto.proposta.operation_amount,
@@ -449,7 +469,7 @@ def _papel_vigente(papeis: list[CollaboratorRoleModel], data: date) -> bool:
     )
 
 
-def _interpretar_configuracao(
+def interpretar_configuracao_escalonada(
     config: dict[str, Any],
 ) -> tuple[tuple[FaixaProducaoEscalonada, ...], tuple[FaixaTpsEscalonada, ...]]:
     faixas_producao = tuple(

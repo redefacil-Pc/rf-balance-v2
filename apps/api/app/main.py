@@ -17,6 +17,9 @@ from app.modules.commissions.api.routes.beneficiary_policies import (
 from app.modules.commissions.api.routes.commission_explanations import (
     router as commission_explanations_router,
 )
+from app.modules.commissions.api.routes.commission_preview import (
+    router as commission_preview_router,
+)
 from app.modules.commissions.api.routes.commission_rules import router as commission_rules_router
 from app.modules.commissions.api.routes.financial_report import (
     router as financial_report_router,
@@ -121,6 +124,7 @@ def criar_app() -> FastAPI:
     app.include_router(receipts_router)
     app.include_router(dashboard_router)
     app.include_router(commission_rules_router)
+    app.include_router(commission_preview_router)
     app.include_router(commission_explanations_router)
     app.include_router(financial_report_router)
     app.include_router(beneficiary_policies_router)
