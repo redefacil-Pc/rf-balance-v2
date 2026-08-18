@@ -3,7 +3,7 @@ API := $(COMPOSE) exec -T api
 WEB := $(COMPOSE) exec -T web
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart build logs ps shell migrate sync-rbac sync-rbac-purge revision downgrade seed seed-demo seed-commission-demo seed-leadership-demo seed-settlement-demo import-dry-run import-dry-run-mysql test test-unit test-integration lint format typecheck web-test web-build openapi clean
+.PHONY: help up down restart build logs ps shell reset reset-dry-run migrate sync-rbac sync-rbac-purge revision downgrade seed seed-demo seed-commission-demo seed-leadership-demo seed-settlement-demo import-dry-run import-dry-run-mysql test test-unit test-integration lint format typecheck web-test web-build openapi clean
 
 help: ## lista os alvos disponíveis
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -51,6 +51,13 @@ revision: ## cria migração (make revision m="descricao")
 
 downgrade: ## desfaz a última migração
 	$(API) alembic downgrade -1
+
+reset-dry-run: ## mostra o que o reset apagaria, sem apagar nada
+	$(API) python -m app.platform.db.reset_operational_data
+
+reset: ## zera os dados operacionais, reinicia os ids em 1 e recria as contas mínimas
+	$(API) python -m app.platform.db.reset_operational_data --sim
+	$(API) python -m app.platform.db.seed
 
 seed: ## cria permissões, papéis e as contas mínimas de operação
 	$(API) python -m app.platform.db.seed

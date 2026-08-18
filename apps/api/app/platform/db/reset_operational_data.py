@@ -27,9 +27,9 @@ import argparse
 import asyncio
 
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.platform.config.settings import get_settings
-from app.platform.db.engine import criar_engine
 
 #: das folhas para as raízes — a ordem só importa se as FKs forem respeitadas,
 #: e aqui elas são desligadas; manter a ordem legível ajuda a revisar a lista
@@ -73,15 +73,15 @@ async def executar(*, incluir_contas: bool) -> int:
         return 1
 
     alvos = [*TABELAS_OPERACIONAIS, *(CONFIGURACAO if incluir_contas else ())]
-    engine = criar_engine(settings.database)
+    # a conta de migração é a que tem DDL. TRUNCATE exige DROP, e é ele que
+    # devolve o AUTO_INCREMENT para 1 — sem isso, a primeira proposta do teste
+    # novo nasceria com o id seguinte ao da massa antiga
+    engine = create_async_engine(settings.database.migration_url, pool_pre_ping=True)
     try:
         async with engine.begin() as conexao:
             await conexao.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
             for tabela in alvos:
-                # DELETE, não TRUNCATE: o usuário da aplicação não tem (nem deve
-                # ter) privilégio de DROP, que o TRUNCATE exige. O contador de
-                # AUTO_INCREMENT segue de onde parou — id não é dado de negócio
-                await conexao.execute(text(f"DELETE FROM {tabela}"))
+                await conexao.execute(text(f"TRUNCATE TABLE {tabela}"))
             # versões-base vêm de migration e precisam continuar de pé; o que
             # foi criado depois, pela tela de regras, é cadastro de teste
             await conexao.execute(text("DELETE FROM commission_rules WHERE rule_set_id <> 1"))
@@ -103,7 +103,7 @@ async def executar(*, incluir_contas: bool) -> int:
     finally:
         await engine.dispose()
 
-    print(f"{len(alvos)} tabelas zeradas.")
+    print(f"{len(alvos)} tabelas zeradas, com os ids reiniciando em 1.")
     if not incluir_contas:
         print("Catálogo de contas de recebimento preservado.")
     print("Recrie o administrador com: python -m app.platform.db.seed")
