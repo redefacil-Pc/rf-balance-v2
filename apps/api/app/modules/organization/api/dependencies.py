@@ -87,9 +87,7 @@ def get_deactivate_collaborator_handler(
     )
 
 
-def get_activate_collaborator_handler(
-    request: Request, uow: Uow
-) -> ActivateCollaboratorHandler:
+def get_activate_collaborator_handler(request: Request, uow: Uow) -> ActivateCollaboratorHandler:
     return ActivateCollaboratorHandler(
         uow=uow,
         colaboradores=SqlCollaboratorRepository(uow.session),

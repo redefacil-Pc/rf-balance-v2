@@ -172,9 +172,7 @@ class SqlCollaboratorRepository:
             )
         )
 
-    async def reativar(
-        self, *, collaborator_id: int, quando: datetime, ator: int | None
-    ) -> None:
+    async def reativar(self, *, collaborator_id: int, quando: datetime, ator: int | None) -> None:
         await self._session.execute(
             update(CollaboratorModel)
             .where(CollaboratorModel.id == collaborator_id)

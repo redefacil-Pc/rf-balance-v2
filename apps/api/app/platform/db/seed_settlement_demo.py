@@ -135,9 +135,7 @@ class SettlementDemo:
             )
             return created.id
 
-    async def ensure_demo_finalizer(
-        self, actor: int, company_id: int, unit_id: int | None
-    ) -> int:
+    async def ensure_demo_finalizer(self, actor: int, company_id: int, unit_id: int | None) -> int:
         async with self.factory() as session:
             existing = await session.scalar(
                 select(CollaboratorModel.id).where(

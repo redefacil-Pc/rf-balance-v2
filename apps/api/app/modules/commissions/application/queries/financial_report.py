@@ -195,9 +195,9 @@ class FinancialCommissionReportQuery:
         automatic_by_strategy: dict[str, Decimal] = {}
         for beneficiary_id, name, strategy, amount in automatic_rows:
             value = Decimal(amount)
-            automatic_by_strategy[str(strategy)] = automatic_by_strategy.get(
-                str(strategy), ZERO
-            ) + value
+            automatic_by_strategy[str(strategy)] = (
+                automatic_by_strategy.get(str(strategy), ZERO) + value
+            )
             item = beneficiaries.setdefault(
                 int(beneficiary_id), _BeneficiaryAccumulator(str(name), set())
             )
@@ -229,9 +229,7 @@ class FinancialCommissionReportQuery:
         consultant = sum(
             (automatic_by_strategy.get(item, ZERO) for item in CONSULTANT_STRATEGIES), ZERO
         )
-        leaders = sum(
-            (automatic_by_strategy.get(item, ZERO) for item in LEADER_STRATEGIES), ZERO
-        )
+        leaders = sum((automatic_by_strategy.get(item, ZERO) for item in LEADER_STRATEGIES), ZERO)
         finalization = automatic_by_strategy.get("FINALIZER", ZERO) + manual_by_type.get(
             "FINALIZATION_BONUS", ZERO
         )
@@ -402,9 +400,7 @@ class FinancialCommissionReportQuery:
         )
         return (
             FinancialReportDetailSummary(
-                recognized_production=sum(
-                    (item.recognized_production for item in ordered), ZERO
-                ),
+                recognized_production=sum((item.recognized_production for item in ordered), ZERO),
                 received_amount=sum((item.received_amount for item in ordered), ZERO),
                 commission_amount=sum((item.amount for item in ordered), ZERO),
                 deferred_amount=settlement.deferred_amount if settlement else ZERO,
@@ -456,8 +452,6 @@ class FinancialCommissionReportQuery:
     @staticmethod
     def _validate_period(period_start: date, period_end: date) -> None:
         if period_end < period_start:
-            raise CommissionRuleConfigurationError(
-                "O fim do período deve ser posterior ao início."
-            )
+            raise CommissionRuleConfigurationError("O fim do período deve ser posterior ao início.")
         if (period_end - period_start).days > 92:
             raise CommissionRuleConfigurationError("O período não pode ultrapassar 93 dias.")

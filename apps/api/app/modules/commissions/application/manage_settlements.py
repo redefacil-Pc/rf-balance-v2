@@ -210,9 +210,7 @@ class CommissionSettlementManager:
         bonus_by_beneficiary: dict[int, Decimal] = {}
         for beneficiary_id, entry_type, amount in manual:
             target = (
-                bonus_by_beneficiary
-                if entry_type == "FINALIZATION_BONUS"
-                else gross_by_beneficiary
+                bonus_by_beneficiary if entry_type == "FINALIZATION_BONUS" else gross_by_beneficiary
             )
             target[int(beneficiary_id)] = target.get(int(beneficiary_id), Decimal("0")) + Decimal(
                 amount

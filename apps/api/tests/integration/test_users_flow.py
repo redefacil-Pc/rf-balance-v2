@@ -186,9 +186,7 @@ async def test_email_normalizado_impede_duplicata_por_caixa(api: Api) -> None:
 
 
 async def test_edicao_administrativa_de_usuario_e_atomica(api: Api) -> None:
-    criado = await _criar(
-        api, email="atomico@rfbalance.local", papeis=["OPERACIONAL"]
-    )
+    criado = await _criar(api, email="atomico@rfbalance.local", papeis=["OPERACIONAL"])
     user_id = criado["id"]
 
     invalido = await api.put(

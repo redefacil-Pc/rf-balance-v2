@@ -150,9 +150,7 @@ class LeadershipDemo:
                 f"Esperadas 7 propostas da massa de comissão; encontradas {len(proposal_ids)}."
             )
         async with UnitOfWork(self.factory) as uow:
-            engine = GroupCommissionEngine(
-                uow.session, SqlOutboxRecorder(uow.session, self.clock)
-            )
+            engine = GroupCommissionEngine(uow.session, SqlOutboxRecorder(uow.session, self.clock))
             for proposal_id in proposal_ids:
                 await engine.gerar_para_proposta(
                     int(proposal_id), correlation_id="seed:leadership-demo"

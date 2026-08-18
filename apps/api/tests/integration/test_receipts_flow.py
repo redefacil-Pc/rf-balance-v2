@@ -471,9 +471,7 @@ async def test_aprovacao_da_proposta_reconhece_o_valor_declarado(
     ) as api:
         proposta = await _rascunho(api, consultor)
         recebimento = (
-            await api.declarar(
-                proposta["id"], chave="chave-reconhecimento", valor="400.00"
-            )
+            await api.declarar(proposta["id"], chave="chave-reconhecimento", valor="400.00")
         ).json()
         versao = await _enviar(api, proposta["id"], proposta["version"])
 
@@ -488,9 +486,7 @@ async def test_aprovacao_da_proposta_reconhece_o_valor_declarado(
 
         detalhe = (await api.get(f"/api/v1/proposals/{proposta['id']}")).json()
         memoria_recebimento = (
-            await api.get(
-                f"/api/v1/receipts/{recebimento['id']}/commission-calculations"
-            )
+            await api.get(f"/api/v1/receipts/{recebimento['id']}/commission-calculations")
         ).json()
         memoria_proposta = (
             await api.get(f"/api/v1/proposals/{proposta['id']}/commission-calculations")
@@ -1126,9 +1122,7 @@ async def test_estorno_reabre_teto_para_recebimento_substituto_e_nova_comissao(
         novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
     ) as api:
         substituto = (
-            await api.declarar(
-                proposta["id"], chave="chave-recebimento-substituto", valor="500.00"
-            )
+            await api.declarar(proposta["id"], chave="chave-recebimento-substituto", valor="500.00")
         ).json()
 
     async with _sessao(

@@ -150,9 +150,7 @@ class UpdateUserHandler(_BaseDeUsuario):
         if await self._users.existe_email(email, exceto=cmd.user_id):
             raise EmailJaCadastradoError(email.valor)
 
-        anteriores_papeis = (await self._users.papeis_de_varios([cmd.user_id])).get(
-            cmd.user_id, []
-        )
+        anteriores_papeis = (await self._users.papeis_de_varios([cmd.user_id])).get(cmd.user_id, [])
         finais_papeis = anteriores_papeis
         role_ids: list[int] | None = None
         if cmd.papeis is not None:
