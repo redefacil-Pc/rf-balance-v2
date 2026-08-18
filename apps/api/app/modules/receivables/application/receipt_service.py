@@ -24,6 +24,12 @@ from app.modules.commissions.application.standard_commission_engine import (
     StandardCommissionEngine,
 )
 from app.modules.identity.infrastructure.models.user_model import UserModel
+from app.modules.organization.infrastructure.models.receiving_account_model import (
+    ReceivingAccountModel,
+)
+from app.modules.receivables.application.ports.receiving_account_directory import (
+    ReceivingAccountDirectory,
+)
 from app.modules.receivables.domain.errors import (
     AutoAprovacaoDeRecebimentoError,
     ChaveIdempotenteEmConflitoError,
@@ -78,6 +84,7 @@ class ReceiptListItem:
     proposal_approval_status: str
     reversal_reason: str | None
     reversed_amount: Decimal
+    receiving_account_label: str | None
 
 
 class ReceiptService:
@@ -90,9 +97,11 @@ class ReceiptService:
         audit: AuditRecorder,
         outbox: SqlOutboxRecorder,
         commissions: StandardCommissionEngine,
+        contas: ReceivingAccountDirectory,
         clock: Clock,
         timezone: str,
     ) -> None:
+        self._contas = contas
         self._uow = uow
         self._session: AsyncSession = uow.session
         self._proposals = proposals
@@ -111,6 +120,7 @@ class ReceiptService:
         business_date: date,
         payment_time: time | None,
         payment_method: str,
+        receiving_account_id: int | None,
         reference: str | None,
         notes: str | None,
         file_name: str,
@@ -122,7 +132,8 @@ class ReceiptService:
     ) -> ReceiptResult:
         self._validate_proof(content_type, content)
         request_hash = hashlib.sha256(
-            f"{proposal_id}|{amount}|{business_date}|{payment_time}|{payment_method}|{reference}|{notes}|".encode()
+            f"{proposal_id}|{amount}|{business_date}|{payment_time}|{payment_method}"
+            f"|{receiving_account_id}|{reference}|{notes}|".encode()
             + hashlib.sha256(content).digest()
         ).hexdigest()
         existing = await self._session.scalar(
@@ -145,6 +156,11 @@ class ReceiptService:
         if not proposal.aceita_recebimento:
             raise FluxoDeRecebimentoInvalidoError(_motivo_da_recusa(proposal))
 
+        if receiving_account_id is not None and not await self._contas.esta_disponivel(
+            receiving_account_id
+        ):
+            raise RecebimentoInvalidoError("Selecione uma conta de recebimento ativa.")
+
         payment_datetime = self._validate_payment_datetime(business_date, payment_time)
         reconhecedor = SqlReceiptRecognizer(self._session, self._clock.now())
         ja_declarado = await reconhecedor.total_declarado(proposal_id)
@@ -166,6 +182,7 @@ class ReceiptService:
             business_date=business_date,
             payment_datetime=payment_datetime,
             payment_method=payment_method.strip().upper(),
+            receiving_account_id=receiving_account_id,
             reference=reference.strip()[:100] if reference else None,
             notes=notes.strip()[:255] if notes else None,
             status="SUBMITTED",
@@ -428,9 +445,16 @@ class ReceiptService:
                 ProposalModel.approval_status,
                 ultimo_motivo_de_estorno,
                 valor_estornado,
+                ReceivingAccountModel.label,
             )
             .join(ProposalModel, ProposalModel.id == ReceiptModel.proposal_id)
             .join(UserModel, UserModel.id == ReceiptModel.created_by)
+            # outer: recebimento anterior ao catálogo não tem conta, e continua
+            # tendo que aparecer na lista
+            .outerjoin(
+                ReceivingAccountModel,
+                ReceivingAccountModel.id == ReceiptModel.receiving_account_id,
+            )
         )
         if status:
             query = query.where(ReceiptModel.status == status)
@@ -447,6 +471,7 @@ class ReceiptService:
                 proposal_approval_status=str(row[3]),
                 reversal_reason=row[4],
                 reversed_amount=Decimal(row[5]),
+                receiving_account_label=row[6],
             )
             for row in rows
         ]

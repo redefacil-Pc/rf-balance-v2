@@ -63,6 +63,9 @@ from app.modules.organization.infrastructure.repositories.sql_collaborator_repos
 from app.modules.organization.infrastructure.repositories.sql_company_repository import (
     SqlCompanyRepository,
 )
+from app.modules.organization.infrastructure.repositories.sql_receiving_account_directory import (
+    SqlReceivingAccountDirectory,
+)
 from app.modules.receivables.application.receipt_service import ReceiptService
 from app.modules.receivables.infrastructure.models.receipt_model import ReceiptModel
 from app.modules.receivables.infrastructure.recognizers.sql_receipt_recognizer import (
@@ -232,6 +235,7 @@ class Populador:
             audit=SqlAuditRecorder(uow.session, self.clock),
             outbox=outbox,
             commissions=StandardCommissionEngine(uow.session, outbox),
+            contas=SqlReceivingAccountDirectory(uow.session),
             clock=self.clock,
             timezone=self.settings.app.app_timezone,
         )
@@ -252,6 +256,7 @@ class Populador:
                 business_date=self.today,
                 payment_time=None,
                 payment_method="PIX",
+                receiving_account_id=None,
                 reference=external_id,
                 notes="Massa local de homologação do comissionamento",
                 file_name=f"{external_id}.pdf",

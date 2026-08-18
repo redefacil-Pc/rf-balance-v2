@@ -1,4 +1,5 @@
 import {
+  IconBuildingBank,
   IconBuildingStore,
   IconCashBanknote,
   IconChartBar,
@@ -91,6 +92,13 @@ export const navegacao: GrupoDeNavegacao[] = [
         icone: IconBuildingStore,
         permissao: 'collaborators:read',
         fase: 'F2',
+      },
+      {
+        rotulo: 'Contas de banco',
+        caminho: '/receiving-accounts',
+        icone: IconBuildingBank,
+        permissao: 'receipts:read',
+        fase: 'F3',
       },
     ],
   },

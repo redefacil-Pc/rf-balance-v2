@@ -53,7 +53,9 @@ export function ReceiptsPage() {
             <Table.Td><Text size="sm" fw={500}>#{receipt.proposal_id} · {receipt.customer_name}</Text>
               {receipt.reference && <Text size="xs" c="dimmed">{receipt.reference}</Text>}</Table.Td>
             <Table.Td><Text size="sm">{receipt.creator_name}</Text></Table.Td>
-            <Table.Td>{receipt.payment_method}</Table.Td>
+            <Table.Td><Text size="sm">{receipt.payment_method}</Text>
+              {receipt.receiving_account_label && <Text size="xs" c="dimmed" maw={200}>
+                {receipt.receiving_account_label}</Text>}</Table.Td>
             <Table.Td ta="right">{formatarMoeda(receipt.amount)}</Table.Td>
             <Table.Td><Badge color={receipt.reversed ? 'gray' : colors[receipt.status]} variant="light">
               {receipt.reversed ? 'Estornado' : labels[receipt.status]}</Badge>

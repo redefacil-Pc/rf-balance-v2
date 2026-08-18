@@ -13,6 +13,9 @@ from app.modules.commissions.application.standard_commission_engine import (
     StandardCommissionEngine,
 )
 from app.modules.identity.api.dependencies import Uow
+from app.modules.organization.infrastructure.repositories.sql_receiving_account_directory import (
+    SqlReceivingAccountDirectory,
+)
 from app.modules.receivables.application.receipt_service import ReceiptService
 from app.platform.bus.outbox_recorder import SqlOutboxRecorder
 
@@ -29,6 +32,7 @@ def get_receipt_service(request: Request, uow: Uow) -> ReceiptService:
         audit=SqlAuditRecorder(uow.session, request.app.state.clock),
         outbox=outbox,
         commissions=StandardCommissionEngine(uow.session, outbox),
+        contas=SqlReceivingAccountDirectory(uow.session),
         clock=request.app.state.clock,
         timezone=request.app.state.settings.app.app_timezone,
     )

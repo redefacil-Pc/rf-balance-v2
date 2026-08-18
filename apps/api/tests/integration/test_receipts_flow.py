@@ -76,13 +76,17 @@ class Api:
         valor: str = "400.00",
         data: str = "2026-08-12",
         meio: str = "PIX",
+        conta: int | None = None,
         conteudo: bytes = PDF,
         content_type: str = "application/pdf",
     ) -> Response:
         """Declara um valor recebido na proposta, como faz a Finalização."""
+        corpo = {"amount": valor, "business_date": data, "payment_method": meio}
+        if conta is not None:
+            corpo["receiving_account_id"] = str(conta)
         return await self._cliente.post(
             f"/api/v1/proposals/{proposal_id}/receipts",
-            data={"amount": valor, "business_date": data, "payment_method": meio},
+            data=corpo,
             files={"proof": ("comprovante.pdf", conteudo, content_type)},
             headers={**self._csrf, "Idempotency-Key": chave},
         )

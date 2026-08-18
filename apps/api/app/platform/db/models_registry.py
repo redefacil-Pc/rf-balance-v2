@@ -33,7 +33,6 @@ from app.modules.legacy.infrastructure.models.legacy_import_issue_model import (
     LegacyImportIssueModel,
 )
 from app.modules.legacy.infrastructure.models.legacy_import_run_model import LegacyImportRunModel
-from app.modules.organization.infrastructure.models.bank_account_model import BankAccountModel
 from app.modules.organization.infrastructure.models.collaborator_model import CollaboratorModel
 from app.modules.organization.infrastructure.models.collaborator_payment_key_model import (
     CollaboratorPaymentKeyModel,
@@ -42,6 +41,9 @@ from app.modules.organization.infrastructure.models.collaborator_role_model impo
     CollaboratorRoleModel,
 )
 from app.modules.organization.infrastructure.models.company_model import CompanyModel
+from app.modules.organization.infrastructure.models.receiving_account_model import (
+    ReceivingAccountModel,
+)
 from app.modules.organization.infrastructure.models.unit_model import UnitModel
 from app.modules.receivables.infrastructure.models.receipt_model import (
     ReceiptModel,
@@ -53,7 +55,6 @@ from app.platform.db.data_integrity_check_model import DataIntegrityCheckModel
 
 __all__ = [
     "AuditEventModel",
-    "BankAccountModel",
     "CollaboratorModel",
     "CollaboratorPaymentKeyModel",
     "CollaboratorRoleModel",
@@ -78,6 +79,7 @@ __all__ = [
     "ProposalModel",
     "ReceiptModel",
     "ReceiptReversalModel",
+    "ReceivingAccountModel",
     "RoleModel",
     "RolePermissionModel",
     "SessionModel",

@@ -110,27 +110,6 @@ async def test_cruds_administrativos_preservam_historico(api: Api) -> None:
     assert details.json()["email"] == "nova@empresa.test"
     assert details.json()["payment_key_type"] == "TELEFONE"
 
-    account = await api.post(
-        f"/api/v1/collaborators/{collaborator_id}/bank-accounts",
-        {
-            "bank_code": "001",
-            "bank_name": "Banco do Brasil",
-            "branch": "1234",
-            "account_number": "987654-3",
-            "account_type": "CORRENTE",
-        },
-    )
-    assert account.status_code == 201, account.text
-    account_id = int(account.json()["id"])
-    listed = await api.get(f"/api/v1/collaborators/{collaborator_id}/bank-accounts")
-    assert listed.json()[0]["account_masked"].endswith("54-3")
-    assert (
-        await api.put(
-            f"/api/v1/collaborators/{collaborator_id}/bank-accounts/{account_id}/status",
-            {"is_active": False},
-        )
-    ).status_code == 204
-
     leader = await api.post(
         "/api/v1/collaborators",
         {

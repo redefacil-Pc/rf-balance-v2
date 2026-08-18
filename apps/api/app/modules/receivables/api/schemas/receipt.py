@@ -35,6 +35,8 @@ class ReceiptResponse(BaseModel):
     business_date: date
     payment_datetime: datetime | None
     payment_method: str
+    receiving_account_id: int | None
+    receiving_account_label: str | None
     reference: str | None
     notes: str | None
     status: str

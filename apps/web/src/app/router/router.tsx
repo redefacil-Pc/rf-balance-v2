@@ -14,6 +14,7 @@ import { ReceiptsPage } from '@/features/receipts/pages/ReceiptsPage';
 import { FinancialReportPage } from '@/features/reports/pages/FinancialReportPage';
 import { SettlementsPage } from '@/features/settlements/pages/SettlementsPage';
 import { TeamsPage } from '@/features/teams/pages/TeamsPage';
+import { ReceivingAccountsPage } from '@/features/receiving-accounts/pages/ReceivingAccountsPage';
 import { UnitsPage } from '@/features/units/pages/UnitsPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 import { TelaPendente } from '@/shared/components/TelaPendente';
@@ -122,6 +123,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permissao="collaborators:read">
             <UnitsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/receiving-accounts',
+        element: (
+          <ProtectedRoute permissao="receipts:read">
+            <ReceivingAccountsPage />
           </ProtectedRoute>
         ),
       },

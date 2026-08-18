@@ -80,3 +80,11 @@ class DadosBancariosInvalidosError(DomainError):
     status = 422
     code = "dados-bancarios-invalidos"
     title = "Dados bancários inválidos"
+
+
+class ContaDeRecebimentoDuplicadaError(DomainError):
+    """Dois rótulos iguais tornariam a escolha no recebimento ambígua."""
+
+    status = 409
+    code = "conta-de-recebimento-duplicada"
+    title = "Conta de recebimento já cadastrada"

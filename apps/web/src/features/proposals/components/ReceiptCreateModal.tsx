@@ -15,6 +15,7 @@ import { IconPaperclip } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { useCreateReceipt } from '@/features/proposals/mutations/useCreateReceipt';
+import { useReceivingAccounts } from '@/features/receiving-accounts/queries/useReceivingAccounts';
 import { mascararMoeda, moedaParaDecimal } from '@/shared/formatters/money-mask';
 
 interface Props {
@@ -36,6 +37,9 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
   const [businessDate, setBusinessDate] = useState(TODAY);
   const [paymentTime, setPaymentTime] = useState(CURRENT_TIME);
   const [method, setMethod] = useState<string | null>('PIX');
+  // só contas ativas: desativada continua no histórico, mas não em lançamento novo
+  const contas = useReceivingAccounts(true);
+  const [receivingAccountId, setReceivingAccountId] = useState<string | null>(null);
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [proof, setProof] = useState<File | null>(null);
@@ -47,6 +51,7 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
     setBusinessDate(TODAY);
     setPaymentTime(CURRENT_TIME);
     setMethod('PIX');
+    setReceivingAccountId(null);
     setReference('');
     setNotes('');
     setProof(null);
@@ -66,6 +71,7 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
       businessDate,
       paymentTime,
       paymentMethod: method,
+      receivingAccountId: receivingAccountId ? Number(receivingAccountId) : null,
       reference,
       notes,
       proof,
@@ -121,6 +127,21 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
             onChange={setMethod}
             data={['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'OUTRO']}
           />
+          <Select
+            label="Conta que recebeu"
+            placeholder={contas.data?.length === 0 ? 'Nenhuma conta cadastrada' : 'Selecione'}
+            searchable
+            clearable
+            disabled={contas.isPending || contas.data?.length === 0}
+            value={receivingAccountId}
+            onChange={setReceivingAccountId}
+            data={(contas.data ?? []).map((item) => ({
+              value: String(item.id),
+              label: item.label,
+            }))}
+          />
+        </Group>
+        <Group grow align="flex-start">
           <TextInput
             label="Referência"
             placeholder="NSU, ID ou descrição"

@@ -9,6 +9,8 @@ export interface Receipt {
   business_date: string;
   payment_datetime: string | null;
   payment_method: string;
+  receiving_account_id: number | null;
+  receiving_account_label: string | null;
   reference: string | null;
   notes: string | null;
   status: ReceiptStatus;

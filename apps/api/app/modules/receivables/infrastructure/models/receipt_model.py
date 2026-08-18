@@ -27,6 +27,11 @@ class ReceiptModel(Base):
     business_date: Mapped[date] = mapped_column(Date, nullable=False)
     payment_datetime: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     payment_method: Mapped[str] = mapped_column(String(30), nullable=False)
+    # em qual conta da casa o dinheiro caiu. Opcional porque os recebimentos
+    # lançados antes do catálogo existir não têm como responder isso
+    receiving_account_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("receiving_accounts.id", ondelete="RESTRICT"), nullable=True
+    )
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="SUBMITTED")
