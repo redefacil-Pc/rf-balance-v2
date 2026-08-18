@@ -82,6 +82,11 @@ _OPERACIONAL = (
     "collaborators:read",
     "proposals:read",
     "proposals:write",
+    # a Finalização lança a proposta **com os valores recebidos**: declarar o
+    # recebimento é parte do cadastro, não uma etapa posterior do Financeiro.
+    # Quem confere no extrato e reconhece o dinheiro é o Financeiro, ao aprovar.
+    "receipts:read",
+    "receipts:write",
     "dashboard:read",
 )
 
