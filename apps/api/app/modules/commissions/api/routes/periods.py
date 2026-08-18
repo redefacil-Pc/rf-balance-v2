@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request, status
 from app.modules.commissions.api.dependencies import get_period_manager
 from app.modules.commissions.api.schemas.period import (
     CommissionPeriodCloseRequest,
+    CommissionPeriodReopenRequest,
     CommissionPeriodRequest,
     CommissionPeriodResponse,
 )
@@ -57,6 +58,24 @@ async def close_period(
 ) -> CommissionPeriodResponse:
     return _response(
         await manager.close(
+            period_id=period_id,
+            reason=body.reason,
+            actor=actor.id,
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+    )
+
+
+@router.post("/{period_id}/reopening", response_model=CommissionPeriodResponse)
+async def reopen_period(
+    period_id: int,
+    body: CommissionPeriodReopenRequest,
+    request: Request,
+    actor: Annotated[User, Depends(require_permission("periods:reopen"))],
+    manager: Annotated[CommissionPeriodManager, Depends(get_period_manager)],
+) -> CommissionPeriodResponse:
+    return _response(
+        await manager.reopen(
             period_id=period_id,
             reason=body.reason,
             actor=actor.id,

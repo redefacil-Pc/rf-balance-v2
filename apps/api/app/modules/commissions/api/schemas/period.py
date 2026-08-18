@@ -16,6 +16,11 @@ class CommissionPeriodCloseRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
 
+class CommissionPeriodReopenRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    reason: str = Field(min_length=10, max_length=500)
+
+
 class CommissionPeriodResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
     id: int
@@ -28,3 +33,6 @@ class CommissionPeriodResponse(BaseModel):
     created_by: int
     closed_at: datetime | None
     closed_by: int | None
+    reopened_at: datetime | None
+    reopened_by: int | None
+    reopen_reason: str | None

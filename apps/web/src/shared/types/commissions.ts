@@ -148,6 +148,9 @@ export interface CommissionPeriod {
   created_by: number;
   closed_at: string | null;
   closed_by: number | null;
+  reopened_at: string | null;
+  reopened_by: number | null;
+  reopen_reason: string | null;
 }
 
 export interface FinancialReportSummary {

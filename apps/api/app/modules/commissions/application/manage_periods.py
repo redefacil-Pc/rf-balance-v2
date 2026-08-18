@@ -9,7 +9,10 @@ from app.modules.commissions.domain.errors import (
     CommissionRuleConfigurationError,
     CommissionRuleConflictError,
 )
-from app.modules.commissions.infrastructure.models.commission_models import CommissionPeriodModel
+from app.modules.commissions.infrastructure.models.commission_models import (
+    CommissionPeriodModel,
+    CommissionSettlementModel,
+)
 from app.platform.bus.outbox_recorder import SqlOutboxRecorder
 from app.platform.db.session.unit_of_work import UnitOfWork
 from app.platform.time.clock import Clock
@@ -125,6 +128,67 @@ class CommissionPeriodManager:
         )
         self._outbox.registrar(
             event_type="commission.period_closed.v1",
+            aggregate_type="commission_period",
+            aggregate_id=str(model.id),
+            correlation_id=correlation_id,
+            payload={
+                "period_start": model.period_start.isoformat(),
+                "period_end": model.period_end.isoformat(),
+            },
+        )
+        await self._uow.commit()
+        await self._session.refresh(model)
+        return model
+
+    async def reopen(
+        self,
+        *,
+        period_id: int,
+        reason: str,
+        actor: int,
+        correlation_id: str | None,
+    ) -> CommissionPeriodModel:
+        model = await self._session.scalar(
+            select(CommissionPeriodModel)
+            .where(CommissionPeriodModel.id == period_id)
+            .with_for_update()
+        )
+        if model is None:
+            raise CommissionRuleConfigurationError("Período não encontrado.")
+        if model.status != "CLOSED":
+            raise CommissionRuleConflictError("Só um período fechado pode ser reaberto.")
+        settled = await self._session.scalar(
+            select(CommissionSettlementModel.id).where(
+                and_(
+                    CommissionSettlementModel.period_start == model.period_start,
+                    CommissionSettlementModel.period_end == model.period_end,
+                    CommissionSettlementModel.paid_amount > 0,
+                )
+            )
+        )
+        if settled is not None:
+            raise CommissionRuleConflictError(
+                "O período já tem fechamento pago; corrija por compensação no período atual."
+            )
+        model.status = "OPEN"
+        model.reopened_at = self._clock.now()
+        model.reopened_by = actor
+        model.reopen_reason = reason.strip()
+        self._audit.registrar(
+            module="commissions",
+            action="commission.period_reopened",
+            actor_user_id=actor,
+            aggregate_type="commission_period",
+            aggregate_id=str(model.id),
+            correlation_id=correlation_id,
+            payload={
+                "reason": reason.strip(),
+                "closed_at": model.closed_at.isoformat() if model.closed_at else None,
+                "closed_by": model.closed_by,
+            },
+        )
+        self._outbox.registrar(
+            event_type="commission.period_reopened.v1",
             aggregate_type="commission_period",
             aggregate_id=str(model.id),
             correlation_id=correlation_id,

@@ -296,3 +296,6 @@ class CommissionPeriodModel(Base):
     created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
     closed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     closed_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    reopened_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    reopened_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    reopen_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
