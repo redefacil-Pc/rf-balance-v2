@@ -1,4 +1,4 @@
-import { createTheme, type MantineColorsTuple } from '@mantine/core';
+import { Button, Card, createTheme, Modal, type MantineColorsTuple } from '@mantine/core';
 
 /**
  * Tokens visuais do RF Balance. Cor, raio e tipografia vivem só aqui —
@@ -33,6 +33,7 @@ const positivo: MantineColorsTuple = [
 
 export const theme = createTheme({
   primaryColor: 'marca',
+  primaryShade: { light: 7, dark: 5 },
   colors: { marca, positivo },
   defaultRadius: 'md',
   fontFamily:
@@ -40,6 +41,21 @@ export const theme = createTheme({
   fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   headings: { fontWeight: '600' },
   cursorType: 'pointer',
+  focusRing: 'auto',
+  components: {
+    Button: Button.extend({
+      defaultProps: { radius: 'md' },
+    }),
+    Card: Card.extend({
+      defaultProps: { radius: 'lg' },
+    }),
+    Modal: Modal.extend({
+      defaultProps: {
+        radius: 'lg',
+        overlayProps: { backgroundOpacity: 0.58, blur: 4 },
+      },
+    }),
+  },
   // valor financeiro é tabular: dígitos precisam alinhar em coluna
   other: {
     fonteNumerica: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',

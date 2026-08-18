@@ -1,0 +1,129 @@
+:root[data-mantine-color-scheme='light'] {
+  --rf-page-background:
+    radial-gradient(circle at 92% 0%, rgba(84, 116, 180, 0.1), transparent 28rem),
+    linear-gradient(145deg, #f8faff 0%, #f2f5fb 58%, #f7f9fc 100%);
+  --rf-shell-surface: rgba(255, 255, 255, 0.88);
+  --rf-shell-border: rgba(44, 75, 128, 0.12);
+  --rf-brand-background: linear-gradient(145deg, #5474b4, #2c4b80);
+  --rf-brand-shadow: 0 8px 24px rgba(44, 75, 128, 0.22);
+  --rf-auth-card: rgba(255, 255, 255, 0.9);
+}
+
+:root[data-mantine-color-scheme='dark'] {
+  --rf-page-background:
+    radial-gradient(circle at 92% 0%, rgba(95, 124, 184, 0.14), transparent 30rem),
+    linear-gradient(145deg, #0b101b 0%, #101725 56%, #0c121e 100%);
+  --rf-shell-surface: rgba(14, 21, 34, 0.9);
+  --rf-shell-border: rgba(148, 168, 208, 0.14);
+  --rf-brand-background: linear-gradient(145deg, #748dc0, #44639f);
+  --rf-brand-shadow: 0 8px 28px rgba(0, 0, 0, 0.36);
+  --rf-auth-card: rgba(18, 26, 41, 0.88);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+::selection {
+  color: var(--mantine-color-white);
+  background: var(--mantine-primary-color-filled);
+}
+
+.rf-shell-header {
+  border-bottom: 1px solid var(--rf-shell-border);
+  background: var(--rf-shell-surface);
+  backdrop-filter: blur(16px);
+}
+
+.rf-shell-navbar {
+  border-right: 1px solid var(--rf-shell-border);
+  background: var(--rf-shell-surface);
+  backdrop-filter: blur(16px);
+}
+
+.rf-app-main {
+  min-height: 100vh;
+  background: var(--rf-page-background);
+}
+
+.rf-brand-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 11px;
+  color: white;
+  background: var(--rf-brand-background);
+  box-shadow: var(--rf-brand-shadow);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.rf-nav-link {
+  margin-bottom: 3px;
+  border-radius: var(--mantine-radius-md);
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.rf-nav-link:hover {
+  transform: translateX(2px);
+}
+
+.rf-nav-link[data-active] {
+  box-shadow: inset 3px 0 0 var(--mantine-primary-color-filled);
+}
+
+.rf-auth-page {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--rf-page-background);
+}
+
+.rf-auth-page::before,
+.rf-auth-page::after {
+  position: absolute;
+  z-index: -1;
+  width: 26rem;
+  height: 26rem;
+  border-radius: 999px;
+  content: '';
+  filter: blur(2px);
+}
+
+.rf-auth-page::before {
+  top: -14rem;
+  right: -8rem;
+  background: rgba(84, 116, 180, 0.13);
+}
+
+.rf-auth-page::after {
+  bottom: -16rem;
+  left: -10rem;
+  background: rgba(38, 211, 147, 0.08);
+}
+
+.rf-auth-card {
+  border-color: var(--rf-shell-border);
+  background: var(--rf-auth-card);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.mantine-Card-root {
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-nav-link,
+  .mantine-Card-root {
+    transition: none;
+  }
+}

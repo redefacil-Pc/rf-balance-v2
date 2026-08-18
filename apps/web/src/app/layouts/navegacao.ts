@@ -124,11 +124,11 @@ export const navegacao: GrupoDeNavegacao[] = [
     titulo: 'Análise',
     itens: [
       {
-        rotulo: 'Relatórios',
+        rotulo: 'Relatório financeiro',
         caminho: '/reports',
         icone: IconFileText,
-        permissao: 'reports:read',
-        fase: 'F6',
+        permissao: 'settlements:read',
+        fase: 'F5',
       },
       {
         rotulo: 'Auditoria',

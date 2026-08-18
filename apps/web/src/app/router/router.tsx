@@ -3,11 +3,16 @@ import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { AppLayout } from '@/app/layouts/AppLayout';
 import { ProtectedRoute } from '@/app/router/ProtectedRoute';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
+import { AuditPage } from '@/features/audit/pages/AuditPage';
 import { CollaboratorsPage } from '@/features/collaborators/pages/CollaboratorsPage';
+import { CommissionRulesPage } from '@/features/commission-rules/pages/CommissionRulesPage';
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
 import { ProposalsPage } from '@/features/proposals/pages/ProposalsPage';
 import { ProposalApprovalsPage } from '@/features/proposals/pages/ProposalApprovalsPage';
+import { PeriodsPage } from '@/features/periods/pages/PeriodsPage';
 import { ReceiptsPage } from '@/features/receipts/pages/ReceiptsPage';
+import { FinancialReportPage } from '@/features/reports/pages/FinancialReportPage';
+import { SettlementsPage } from '@/features/settlements/pages/SettlementsPage';
 import { TeamsPage } from '@/features/teams/pages/TeamsPage';
 import { UnitsPage } from '@/features/units/pages/UnitsPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
@@ -27,44 +32,6 @@ interface Pendente {
 }
 
 const pendentes: Pendente[] = [
-  {
-    caminho: '/commission-rules',
-    titulo: 'Regras de comissão',
-    permissao: 'commission_rules:read',
-    fase: 'F4',
-    descricao:
-      'Conjuntos de regras versionados com vigência, sem lacuna nem sobreposição, e explicação do cálculo.',
-  },
-  {
-    caminho: '/periods',
-    titulo: 'Períodos',
-    permissao: 'periods:read',
-    fase: 'F5',
-    descricao: 'Semanas, cutoff e fechamento. Período fechado fica imutável.',
-  },
-  {
-    caminho: '/settlements',
-    titulo: 'Fechamentos',
-    permissao: 'settlements:read',
-    fase: 'F5',
-    descricao: 'Fechamento por beneficiário e período, aprovação e pagamento real.',
-  },
-  {
-    caminho: '/reports',
-    titulo: 'Relatórios',
-    permissao: 'reports:read',
-    fase: 'F6',
-    descricao:
-      'Relatórios individual, de equipe, unidade, geral e operacional, com exportação assíncrona em PDF, XLSX e ZIP.',
-  },
-  {
-    caminho: '/audit',
-    titulo: 'Auditoria',
-    permissao: 'audit:read',
-    fase: 'F6',
-    descricao:
-      'Consulta da trilha append-only: quem fez o quê, quando e com qual regra. A gravação já está ativa desde a F1.',
-  },
   {
     caminho: '/admin/operations',
     titulo: 'Operações administrativas',
@@ -155,6 +122,46 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permissao="collaborators:read">
             <UnitsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/commission-rules',
+        element: (
+          <ProtectedRoute permissao="commission_rules:read">
+            <CommissionRulesPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/settlements',
+        element: (
+          <ProtectedRoute permissao="settlements:read">
+            <SettlementsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/periods',
+        element: (
+          <ProtectedRoute permissao="periods:read">
+            <PeriodsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/audit',
+        element: (
+          <ProtectedRoute permissao="audit:read">
+            <AuditPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/reports',
+        element: (
+          <ProtectedRoute permissao="settlements:read">
+            <FinancialReportPage />
           </ProtectedRoute>
         ),
       },
