@@ -297,7 +297,7 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
             <Text size="xs" c="dimmed">Opcional: contrato, proposta assinada e afins. O comprovante do pagamento vai no bloco acima.</Text>
             {arquivos.length > 0 && <List size="sm" icon={<IconPaperclip size={14} />}>{arquivos.map((arquivo, indice) => <List.Item key={`${arquivo.name}-${arquivo.size}`}><Group justify="space-between"><Text size="sm">{arquivo.name}</Text><Button variant="subtle" color="red" size="compact-xs" leftSection={<IconTrash size={13} />} onClick={() => setArquivos((atuais) => atuais.filter((_, i) => i !== indice))}>Remover</Button></Group></List.Item>)}</List>}
             <FileButton multiple accept="application/pdf,image/jpeg,image/png" onChange={(selecionados) => setArquivos((atuais) => [...atuais, ...selecionados].filter((arquivo) => arquivo.size <= 10 * 1024 * 1024))}>
-              {(props) => <Button {...props} variant="default" leftSection={<IconUpload size={16} />} w="fit-content">Selecionar comprovantes</Button>}
+              {(props) => <Button {...props} variant="default" leftSection={<IconUpload size={16} />} w="fit-content">Selecionar documentos</Button>}
             </FileButton>
           </Stack>
 

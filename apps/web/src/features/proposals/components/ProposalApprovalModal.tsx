@@ -59,8 +59,14 @@ function somarValores(valores: string[]): string {
 
 /**
  * Fluxo cadastro → financeiro (situação de aprovação, separada do status
- * financeiro). Quem cadastrou anexa comprovante e envia; o financeiro aprova
- * ou devolve com motivo.
+ * financeiro). Quem cadastrou declara os valores recebidos, cada um com o seu
+ * comprovante, e envia; o financeiro confere no extrato e aprova ou devolve com
+ * motivo.
+ *
+ * "Documentos da operação" é outra coisa: contrato e afins, sem valor
+ * associado. O comprovante de pagamento mora no recebimento que ele comprova —
+ * pedir o mesmo documento nos dois lugares foi o que fez a proposta chegar ao
+ * financeiro com comprovante e saldo zero.
  */
 export function ProposalApprovalModal({ proposta, onFechar }: Props) {
   const { pode } = useAuth();
@@ -104,7 +110,7 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
   const declarados = (recebimentos.data?.items ?? []).filter(
     (item) => item.status !== 'REJECTED' && item.net_amount !== '0.00',
   );
-  const temComprovante = (anexos.data ?? []).length > 0 || declarados.length > 0;
+  const temConteudoParaEnviar = (anexos.data ?? []).length > 0 || declarados.length > 0;
   const totalDeclarado = somarValores(declarados.map((item) => item.net_amount));
 
   const enviarAoFinanceiro = () => {
@@ -195,13 +201,13 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
           </Badge>
         </Group>
 
-        <Divider label="Comprovantes de pagamento" labelPosition="left" />
+        <Divider label="Documentos da operação" labelPosition="left" />
 
         <EstadoDaLista
           carregando={anexos.isPending}
           erro={anexos.error ?? null}
           vazio={(anexos.data ?? []).length === 0}
-          mensagemVazio="Nenhum comprovante anexado."
+          mensagemVazio="Nenhum documento anexado."
         >
           <List spacing="xs" size="sm">
             {(anexos.data ?? []).map((anexo) => (
@@ -253,7 +259,7 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
                 leftSection={<IconUpload size={16} />}
                 loading={anexar.isPending}
               >
-                Anexar comprovante
+                Anexar documento
               </Button>
             )}
           </FileButton>
@@ -357,8 +363,8 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
               <Button
                 onClick={enviarAoFinanceiro}
                 loading={enviar.isPending}
-                disabled={!temComprovante}
-                title={!temComprovante ? 'Anexe ou declare ao menos um comprovante para enviar' : undefined}
+                disabled={!temConteudoParaEnviar}
+                title={!temConteudoParaEnviar ? 'Declare um valor recebido ou anexe um documento para enviar' : undefined}
               >
                 Enviar para aprovação
               </Button>
