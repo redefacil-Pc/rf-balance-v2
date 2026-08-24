@@ -15,7 +15,7 @@ COPY apps/web ./
 RUN npm run build
 
 # ---------- runtime: nginx servindo estático ----------
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 COPY infrastructure/nginx/web.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
