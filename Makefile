@@ -14,7 +14,7 @@ up: ## sobe o ambiente completo
 	$(COMPOSE) up -d
 	@echo "api  -> http://localhost:8000/docs"
 	@echo "web  -> http://localhost:5173"
-	@echo "minio-> http://localhost:9001"
+	@echo "storage -> endpoint S3/Spaces configurado no .env"
 
 down: ## derruba os containers (preserva os volumes)
 	$(COMPOSE) down
@@ -114,4 +114,4 @@ openapi: ## exporta o contrato OpenAPI
 	$(API) python -c "import json;from app.main import criar_app;print(json.dumps(criar_app().openapi(),indent=2))" > openapi.json
 
 clean: ## derruba tudo e apaga os volumes (PERDE OS DADOS LOCAIS)
-	$(COMPOSE) down -v
+	$(COMPOSE) --profile local-storage down -v

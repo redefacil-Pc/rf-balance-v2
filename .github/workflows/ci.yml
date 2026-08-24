@@ -30,7 +30,9 @@ jobs:
       - name: mypy
         run: mypy app
       - name: pytest unit
-        run: pytest tests/unit --cov=app --cov-report=term-missing
+        # Baseline global atual; subir gradualmente ate 70% conforme as camadas
+        # de aplicacao e infraestrutura ganharem testes unitarios dedicados.
+        run: pytest tests/unit --cov=app --cov-report=term-missing --cov-fail-under=20
 
   backend-integration:
     name: backend — integração (MySQL e Redis efêmeros)
@@ -160,9 +162,44 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
-      - run: npm run test
+      - run: npm run test:coverage
       - run: npm run build
+
+  frontend-e2e:
+    name: frontend — fluxo crítico no navegador
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: preparar configuração local sintética
+        run: cp ../../.env.example ../../.env
+      - name: subir dependências do E2E
+        run: docker compose -f ../../infrastructure/compose/docker-compose.yml --env-file ../../.env --profile local-storage up -d db redis minio minio-init
+      - name: executar Playwright
+        run: npm run test:e2e
+      - name: publicar diagnóstico em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore
+      - name: encerrar ambiente
+        if: always()
+        run: docker compose -f ../../infrastructure/compose/docker-compose.yml --env-file ../../.env --profile local-storage down -v
 
   security:
     name: segurança — dependências e segredos
@@ -186,9 +223,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: npm audit
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: npm audit do lockfile versionado
         working-directory: apps/web
-        run: npm install --package-lock-only && npm audit --audit-level=high
+        run: npm ci && npm audit --audit-level=moderate
       - name: secret scan
         uses: gitleaks/gitleaks-action@v2
         env:

@@ -43,7 +43,7 @@ switch ($Command) {
         Write-Host ""
         Write-Host "api   -> http://localhost:8000/docs"
         Write-Host "web   -> http://localhost:5173"
-        Write-Host "minio -> http://localhost:9001"
+        Write-Host "storage -> endpoint S3/Spaces configurado no .env"
     }
     'down'     { Invoke-Compose @('down') }
     'restart'  { Invoke-Compose @('restart', 'api', 'worker', 'scheduler') }
@@ -84,8 +84,8 @@ switch ($Command) {
     }
 
     'clean' {
-        Write-Host "Isso apaga os volumes locais (banco, redis, minio)." -ForegroundColor Red
-        Invoke-Compose @('down', '-v')
+        Write-Host "Isso apaga os volumes locais (banco, redis e MinIO opcional)." -ForegroundColor Red
+        & docker @($compose + @('--profile', 'local-storage', 'down', '-v'))
     }
 
     default {

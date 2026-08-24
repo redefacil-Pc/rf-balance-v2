@@ -27,6 +27,7 @@ interface Props {
 
 export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
   const create = useCreateReceipt();
+  const resetCreate = create.reset;
   const [instanteInicial] = useState(obterDataHoraEmSaoPaulo);
   const [amount, setAmount] = useState('');
   const [businessDate, setBusinessDate] = useState(instanteInicial.data);
@@ -54,8 +55,8 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
     setNotes('');
     setProof(null);
     setIdempotencyKey(crypto.randomUUID());
-    create.reset();
-  }, [opened]);
+    resetCreate();
+  }, [opened, resetCreate]);
 
   // o estado guarda o valor mascarado, que é o que o operador confere; a
   // conversão para a string decimal da API acontece num ponto só, no envio

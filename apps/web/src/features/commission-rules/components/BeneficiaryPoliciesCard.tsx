@@ -13,13 +13,14 @@ export function BeneficiaryPoliciesCard() {
   const policies = (query.data ?? []).filter((item) => item.collaborator_name && item.valid_from);
   const create = useCreateBeneficiaryPolicy();
   const collaborators = useCollaborators({ only_active: true });
+  const { data: collaboratorData, fetchNextPage, hasNextPage, isFetchingNextPage } = collaborators;
   useEffect(() => {
-    if (collaborators.hasNextPage && !collaborators.isFetchingNextPage) {
-      void collaborators.fetchNextPage();
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
     }
-  }, [collaborators.hasNextPage, collaborators.isFetchingNextPage, collaborators.fetchNextPage]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
   const options = useMemo(() => {
-    const eligible = (collaborators.data?.pages ?? [])
+    const eligible = (collaboratorData?.pages ?? [])
       .flatMap((page) => Array.isArray(page.items) ? page.items : [])
       .filter((item) => item.roles?.includes('CONSULTOR') || item.roles?.includes('CONSULTOR_MEI_ESCALONADO'));
     return Array.from(new Map(eligible.map((item) => [item.id, item])).values())
@@ -27,7 +28,7 @@ export function BeneficiaryPoliciesCard() {
         value: String(item.id),
         label: `${item.full_name} — ${item.roles.includes('CONSULTOR_MEI_ESCALONADO') ? 'Escalonado' : 'Padrão'} · ${item.tax_regime}`,
       }));
-  }, [collaborators.data]);
+  }, [collaboratorData]);
   const [opened, setOpened] = useState(false);
   const [collaborator, setCollaborator] = useState<string | null>(null);
   const [validFrom, setValidFrom] = useState(new Date().toISOString().slice(0, 10));

@@ -101,7 +101,6 @@ export function LoginPage() {
                 label="E-mail"
                 placeholder="nome@empresa.com.br"
                 autoComplete="username"
-                autoFocus
                 withAsterisk
                 error={errors.email?.message}
                 {...register('email')}

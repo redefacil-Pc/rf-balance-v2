@@ -14,7 +14,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'docker compose -f ../../infrastructure/compose/docker-compose.yml --env-file ../../.env run --rm --name rfbalance-e2e-api -p 127.0.0.1:8001:8000 -e APP_ENV=local -e COOKIE_SECURE=false -e DATABASE_URL=mysql+asyncmy://rfbalance:rfbalance@db:3306/rfbalance_test -e MIGRATION_DATABASE_URL=mysql+asyncmy://rfbalance_migrator:rfbalance_migrator@db:3306/rfbalance_test -e REDIS_URL=redis://redis:6379/10 -e SEED_ADMIN_PASSWORD=e2e-admin-password-2026 api sh -c "alembic upgrade head && python -m app.platform.db.prepare_e2e && uvicorn app.main:app --host 0.0.0.0 --port 8000"',
+      command: 'docker compose -f ../../infrastructure/compose/docker-compose.yml --env-file ../../.env --profile local-storage up -d minio minio-init && docker compose -f ../../infrastructure/compose/docker-compose.yml --env-file ../../.env run --rm --name rfbalance-e2e-api -p 127.0.0.1:8001:8000 -e APP_ENV=local -e COOKIE_SECURE=false -e DATABASE_URL=mysql+asyncmy://rfbalance:rfbalance@db:3306/rfbalance_test -e MIGRATION_DATABASE_URL=mysql+asyncmy://rfbalance_migrator:rfbalance_migrator@db:3306/rfbalance_test -e REDIS_URL=redis://redis:6379/10 -e OBJECT_STORAGE_ENDPOINT=http://minio:9000 -e OBJECT_STORAGE_BUCKET=rfbalance-documents -e OBJECT_STORAGE_ACCESS_KEY=rfbalance -e OBJECT_STORAGE_SECRET_KEY=rfbalance-local-secret-2026 -e OBJECT_STORAGE_REGION=us-east-1 -e OBJECT_STORAGE_ADDRESSING_STYLE=path -e SEED_ADMIN_PASSWORD=e2e-admin-password-2026 api sh -c "alembic upgrade head && python -m app.platform.db.prepare_e2e && uvicorn app.main:app --host 0.0.0.0 --port 8000"',
       url: 'http://127.0.0.1:8001/health/ready',
       timeout: 120_000,
       reuseExistingServer: false,

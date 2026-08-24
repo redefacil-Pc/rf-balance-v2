@@ -28,6 +28,8 @@ class Settings:
         self.pii.validar_para_ambiente()
         if self.app.is_production and not self.app.cors_origins:
             raise ValueError("CORS_ALLOWED_ORIGINS é obrigatório em produção")
+        if self.app.is_production and not self.app.metrics_token:
+            raise ValueError("METRICS_TOKEN é obrigatório em produção")
 
 
 @lru_cache(maxsize=1)

@@ -131,9 +131,7 @@ class FinancialCommissionReportQuery:
                     ReceiptModel.status == "APPROVED",
                     ReceiptModel.business_date >= period_start,
                     ReceiptModel.business_date <= period_end,
-                    self._consultant_scope(
-                        consultant_ids, leader_id, ReceiptModel.business_date
-                    ),
+                    self._consultant_scope(consultant_ids, leader_id, ReceiptModel.business_date),
                 )
             )
             or 0

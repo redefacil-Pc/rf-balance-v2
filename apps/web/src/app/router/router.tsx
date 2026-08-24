@@ -3,7 +3,9 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 
 import { AppLayout } from '@/app/layouts/AppLayout';
+import { NotFoundPage } from '@/app/router/NotFoundPage';
 import { ProtectedRoute } from '@/app/router/ProtectedRoute';
+import { RouteErrorPage } from '@/app/router/RouteErrorPage';
 
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage').then((module) => ({ default: module.LoginPage })));
 const OperationsPage = lazy(() => import('@/features/operations/pages/OperationsPage').then((module) => ({ default: module.OperationsPage })));
@@ -31,9 +33,10 @@ function withPageLoading(page: ReactNode): ReactNode {
 }
 
 export const router = createBrowserRouter([
-  { path: '/login', element: withPageLoading(<LoginPage />) },
+  { path: '/login', element: withPageLoading(<LoginPage />), errorElement: <RouteErrorPage /> },
   {
     path: '/',
+    errorElement: <RouteErrorPage />,
     element: withPageLoading(
       <ProtectedRoute>
         <AppLayout />
@@ -161,6 +164,7 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ]);

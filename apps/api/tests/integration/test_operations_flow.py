@@ -80,9 +80,7 @@ async def test_admin_consulta_operacoes_e_executa_backup_auditado(
     assert created.json()["removed_by_retention"] == 2
     assert created.json()["local_replica_created"] is True
 
-    audit = await cliente.get(
-        "/api/v1/audit-events", params={"action": "backup.created_manually"}
-    )
+    audit = await cliente.get("/api/v1/audit-events", params={"action": "backup.created_manually"})
     assert audit.status_code == 200
     assert audit.json()["items"][0]["aggregate_id"].endswith("manual.sql.gz")
 

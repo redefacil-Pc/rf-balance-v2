@@ -184,9 +184,7 @@ async def contar_pendentes(
     escopo: Escopo,
     handler: Annotated[ListProposalsHandler, Depends(get_list_proposals_handler)],
 ) -> PendingProposalCountResponse:
-    quantidade = await handler.count(
-        FiltroDePropostas(approval_status="SUBMITTED", escopo=escopo)
-    )
+    quantidade = await handler.count(FiltroDePropostas(approval_status="SUBMITTED", escopo=escopo))
     return PendingProposalCountResponse(count=quantidade)
 
 

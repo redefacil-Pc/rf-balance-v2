@@ -51,9 +51,7 @@ async def export_financial_report_xlsx(
     unit_id: Annotated[int | None, Query(gt=0)] = None,
     leader_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> Response:
-    summary, beneficiaries = await _report_data(
-        uow, period_start, period_end, unit_id, leader_id
-    )
+    summary, beneficiaries = await _report_data(uow, period_start, period_end, unit_id, leader_id)
     return Response(
         financial_report_xlsx(summary, beneficiaries),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -71,9 +69,7 @@ async def export_financial_report_pdf(
     unit_id: Annotated[int | None, Query(gt=0)] = None,
     leader_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> Response:
-    summary, beneficiaries = await _report_data(
-        uow, period_start, period_end, unit_id, leader_id
-    )
+    summary, beneficiaries = await _report_data(uow, period_start, period_end, unit_id, leader_id)
     return Response(
         financial_report_pdf(summary, beneficiaries),
         media_type="application/pdf",

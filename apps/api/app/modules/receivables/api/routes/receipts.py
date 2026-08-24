@@ -83,12 +83,8 @@ def _write_response(result: ReceiptResult) -> ReceiptWriteResponse:
 async def create_proposal_with_receipt(
     request: Request,
     uow: Uow,
-    actor: Annotated[
-        User, Depends(require_permission("proposals:write", "receipts:write"))
-    ],
-    proposal_handler: Annotated[
-        CreateProposalHandler, Depends(get_create_proposal_handler)
-    ],
+    actor: Annotated[User, Depends(require_permission("proposals:write", "receipts:write"))],
+    proposal_handler: Annotated[CreateProposalHandler, Depends(get_create_proposal_handler)],
     receipt_service: Annotated[ReceiptService, Depends(get_receipt_service)],
     scope: Escopo,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=100)],

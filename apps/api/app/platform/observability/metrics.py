@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 from collections import defaultdict
 from time import perf_counter
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
 from starlette.responses import Response
 
 
@@ -64,10 +64,30 @@ class HttpMetricsMiddleware(BaseHTTPMiddleware):
             return response
         finally:
             rota = request.scope.get("route")
-            caminho = getattr(rota, "path", request.url.path)
+            # Nunca use o path bruto como label: um cliente poderia gerar uma
+            # cardinalidade ilimitada com URLs aleatorias e consumir memoria.
+            caminho = getattr(rota, "path", "__unmatched__")
             await METRICS.registrar(request.method, str(caminho), status, perf_counter() - inicio)
 
 
-@router.get("/metrics", response_class=PlainTextResponse)
-async def metrics() -> str:
+def _autorizar_scraper(request: Request, token: str | None) -> None:
+    settings = getattr(request.app.state, "settings", None)
+    app_settings = getattr(settings, "app", None)
+    ambiente = getattr(app_settings, "app_env", "local")
+    esperado = getattr(app_settings, "metrics_token", "")
+
+    # O ambiente local permanece simples. Fora dele, falhar fechado evita que
+    # volume, rotas internas e codigos de resposta sejam expostos por engano.
+    if ambiente == "local" and not esperado:
+        return
+    if not esperado or token is None or not secrets.compare_digest(token, esperado):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+
+@router.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
+async def metrics(
+    request: Request,
+    x_metrics_token: str | None = Header(default=None, alias="X-Metrics-Token"),
+) -> str:
+    _autorizar_scraper(request, x_metrics_token)
     return await METRICS.exportar()

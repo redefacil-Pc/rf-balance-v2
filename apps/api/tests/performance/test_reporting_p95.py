@@ -18,9 +18,7 @@ def _p95(samples: list[float]) -> float:
     return sorted(samples)[math.ceil(len(samples) * 0.95) - 1]
 
 
-async def _measure(
-    client: AsyncClient, path: str, params: dict[str, str]
-) -> tuple[float, int]:
+async def _measure(client: AsyncClient, path: str, params: dict[str, str]) -> tuple[float, int]:
     warmup = await client.get(path, params=params)
     assert warmup.status_code == 200, warmup.text
     samples: list[float] = []
@@ -35,9 +33,7 @@ async def _measure(
 
 
 async def test_dashboard_p95(performance_client: AsyncClient) -> None:
-    p95, response_size = await _measure(
-        performance_client, "/api/v1/dashboard", DASHBOARD_PARAMS
-    )
+    p95, response_size = await _measure(performance_client, "/api/v1/dashboard", DASHBOARD_PARAMS)
     budget = float(os.getenv("PERFORMANCE_DASHBOARD_P95_SECONDS", "2.0"))
     print(f"dashboard_p95={p95:.4f}s budget={budget:.4f}s bytes={response_size}")
     assert p95 <= budget

@@ -41,12 +41,9 @@ def test_estorno_e_substituto_usam_valor_liquido() -> None:
 
 
 def test_status_respeita_limites_inclusivos_da_tolerancia_v1() -> None:
-    assert proposal_status(
-        company_commission=Decimal("3500"), received=Decimal("3490")
-    ) == "PAID"
-    assert proposal_status(
-        company_commission=Decimal("3500"), received=Decimal("3489.99")
-    ) == "PARTIALLY_PAID"
-    assert proposal_status(
-        company_commission=Decimal("3500"), received=Decimal("3600")
-    ) == "PAID"
+    assert proposal_status(company_commission=Decimal("3500"), received=Decimal("3490")) == "PAID"
+    assert (
+        proposal_status(company_commission=Decimal("3500"), received=Decimal("3489.99"))
+        == "PARTIALLY_PAID"
+    )
+    assert proposal_status(company_commission=Decimal("3500"), received=Decimal("3600")) == "PAID"

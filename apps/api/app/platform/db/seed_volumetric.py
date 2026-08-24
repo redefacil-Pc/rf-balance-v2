@@ -85,9 +85,7 @@ async def seed_volumetric(*, proposal_count: int, reset: bool) -> dict[str, int]
         async with engine.begin() as connection:
             if reset:
                 await _reset(connection)
-            existing = int(
-                await connection.scalar(select(func.count(ProposalModel.id))) or 0
-            )
+            existing = int(await connection.scalar(select(func.count(ProposalModel.id))) or 0)
             if existing:
                 raise RuntimeError("já existem propostas; use --reset em um banco descartável")
 
@@ -256,10 +254,18 @@ async def seed_volumetric(*, proposal_count: int, reset: bool) -> dict[str, int]
         async with engine.begin() as connection:
             await connection.execute(insert(CompanyModel), companies)
             await connection.execute(insert(UnitModel), units)
-            await connection.execute(insert(ReceivingAccountModel), [{
-                "id": 1, "label": "Conta Performance", "display_order": 1,
-                "is_active": True, "created_by": admin_id,
-            }])
+            await connection.execute(
+                insert(ReceivingAccountModel),
+                [
+                    {
+                        "id": 1,
+                        "label": "Conta Performance",
+                        "display_order": 1,
+                        "is_active": True,
+                        "created_by": admin_id,
+                    }
+                ],
+            )
             await _insert_batches(connection, CollaboratorModel, collaborators)
             await _insert_batches(connection, CollaboratorRoleModel, roles)
             await _insert_batches(connection, ProposalModel, proposals)

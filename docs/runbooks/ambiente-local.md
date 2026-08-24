@@ -29,7 +29,7 @@ Em Linux/macOS/CI o `Makefile` cobre os mesmos alvos (`make up`, `make test`, `m
 | API (docs) | http://localhost:8000/docs |
 | API health | http://localhost:8000/health/ready |
 | Frontend (Vite) | http://localhost:5173 |
-| Console do MinIO | http://localhost:9101 |
+| Storage | endpoint S3/Spaces configurado em `OBJECT_STORAGE_ENDPOINT` |
 | MySQL | 127.0.0.1:3307 |
 | Redis | 127.0.0.1:6380 |
 
@@ -40,7 +40,21 @@ As portas do host foram escolhidas para conviver com o que já roda nesta máqui
 - **3306 é do MySQL do sistema atual (v1)** e não deve ser tocada enquanto os dois sistemas coexistirem — a v2 usa **3307**.
 - **6379 / 9000 / 9001** estão ocupadas por outro projeto local (`workflow`) — a v2 usa **6380 / 9100 / 9101**.
 
-Todas são configuráveis por `*_HOST_PORT` no `.env` e afetam **apenas** o acesso a partir do host. Entre containers valem os nomes de serviço (`db:3306`, `redis:6379`, `minio:9000`), que não mudam.
+Todas são configuráveis por `*_HOST_PORT` no `.env` e afetam **apenas** o acesso a partir do host. Entre containers valem os nomes de serviço (`db:3306` e `redis:6379`).
+
+### MinIO opcional
+
+O ambiente normal usa o endpoint S3/Spaces do `.env`; com DigitalOcean, MinIO
+e `minio-init` não são criados. Para desenvolvimento offline ou E2E, ative o
+perfil isolado, que nunca reutiliza as credenciais do Spaces:
+
+```bash
+docker compose -f infrastructure/compose/docker-compose.yml --env-file .env --profile local-storage up -d minio minio-init
+```
+
+Nesse perfil, o console fica em http://localhost:9101. `minio-init` e
+`backup-init` são tarefas de execução única e terminam corretamente como
+`Exited (0)`.
 
 ## Primeiro acesso à aplicação
 
@@ -171,7 +185,8 @@ curl -s http://localhost:8000/health/ready
 ## Resetar o ambiente
 
 ```bash
-docker compose -f infrastructure/compose/docker-compose.yml --env-file .env down -v
+docker compose -f infrastructure/compose/docker-compose.yml --env-file .env --profile local-storage down -v
 ```
 
-Apaga os volumes locais (MySQL, Redis, MinIO). Não afeta o sistema atual (v1), que roda fora deste compose.
+O perfil inclui na limpeza o volume opcional do MinIO. Isso não afeta o bucket
+do DigitalOcean nem o sistema atual (v1).

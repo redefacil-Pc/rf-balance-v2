@@ -45,7 +45,8 @@ export function ReceivingAccountsPage() {
   const salvarLinha = async (id: number, label: string, ordem: number) => {
     await salvar.mutateAsync({ id, label: label.trim(), display_order: ordem });
     setRascunhos((atual) => {
-      const { [id]: _removido, ...resto } = atual;
+      const resto = { ...atual };
+      delete resto[id];
       return resto;
     });
     notifications.show({ color: 'positivo', title: 'Conta atualizada', message: label.trim() });

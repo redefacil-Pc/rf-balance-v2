@@ -55,10 +55,11 @@ async def executar() -> None:
                 ultimo_backup, ultima_tentativa_backup = await _executar_backup_se_devido(
                     settings, ultimo_backup, ultima_tentativa_backup
                 )
-                ultimo_ensaio_restauracao, ultima_tentativa_restauracao = (
-                    await _executar_ensaio_restauracao_se_devido(
-                        settings, ultimo_ensaio_restauracao, ultima_tentativa_restauracao
-                    )
+                (
+                    ultimo_ensaio_restauracao,
+                    ultima_tentativa_restauracao,
+                ) = await _executar_ensaio_restauracao_se_devido(
+                    settings, ultimo_ensaio_restauracao, ultima_tentativa_restauracao
                 )
                 _logger.info("scheduler_tick", scheduled_jobs=3, leader=True, **resultados)
             elif await redis.get(CHAVE_DE_LIDER) == token:
@@ -71,10 +72,11 @@ async def executar() -> None:
                 ultimo_backup, ultima_tentativa_backup = await _executar_backup_se_devido(
                     settings, ultimo_backup, ultima_tentativa_backup
                 )
-                ultimo_ensaio_restauracao, ultima_tentativa_restauracao = (
-                    await _executar_ensaio_restauracao_se_devido(
-                        settings, ultimo_ensaio_restauracao, ultima_tentativa_restauracao
-                    )
+                (
+                    ultimo_ensaio_restauracao,
+                    ultima_tentativa_restauracao,
+                ) = await _executar_ensaio_restauracao_se_devido(
+                    settings, ultimo_ensaio_restauracao, ultima_tentativa_restauracao
                 )
                 _logger.info("scheduler_tick", scheduled_jobs=3, leader=True, **resultados)
             else:
@@ -128,10 +130,7 @@ async def _executar_limpeza_se_devida(
     ultima_limpeza: date | None,
 ) -> date | None:
     agora = datetime.now(UTC)
-    if (
-        ultima_limpeza == agora.date()
-        or agora.hour < settings.retention.retention_cleanup_hour_utc
-    ):
+    if ultima_limpeza == agora.date() or agora.hour < settings.retention.retention_cleanup_hour_utc:
         return ultima_limpeza
     try:
         async with sessoes() as session:

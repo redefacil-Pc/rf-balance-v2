@@ -55,9 +55,7 @@ async def create_document_job(
     body: CreateDocumentJobRequest,
     request: Request,
     uow: Uow,
-    actor: Annotated[
-        User, Depends(require_permission("reports:export", "settlements:read"))
-    ],
+    actor: Annotated[User, Depends(require_permission("reports:export", "settlements:read"))],
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=100)],
 ) -> DocumentJobResponse:
     job = await DocumentJobService(
@@ -86,9 +84,7 @@ async def create_document_job(
 @router.get("", response_model=DocumentJobPageResponse)
 async def list_document_jobs(
     uow: Uow,
-    _actor: Annotated[
-        User, Depends(require_permission("reports:export", "settlements:read"))
-    ],
+    _actor: Annotated[User, Depends(require_permission("reports:export", "settlements:read"))],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> DocumentJobPageResponse:
     archive_exists = exists(
@@ -113,9 +109,7 @@ async def list_document_jobs(
 async def get_document_job(
     job_id: int,
     uow: Uow,
-    _actor: Annotated[
-        User, Depends(require_permission("reports:export", "settlements:read"))
-    ],
+    _actor: Annotated[User, Depends(require_permission("reports:export", "settlements:read"))],
 ) -> DocumentJobResponse:
     job = await uow.session.get(DocumentJobModel, job_id)
     if job is None:
@@ -134,9 +128,7 @@ async def download_document_job(
     job_id: int,
     request: Request,
     uow: Uow,
-    _actor: Annotated[
-        User, Depends(require_permission("reports:export", "settlements:read"))
-    ],
+    _actor: Annotated[User, Depends(require_permission("reports:export", "settlements:read"))],
 ) -> StreamingResponse:
     job = await uow.session.get(DocumentJobModel, job_id)
     if job is None:

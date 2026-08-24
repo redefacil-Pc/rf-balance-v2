@@ -494,9 +494,7 @@ class ReceiptService:
             raise RecebimentoNaoEncontradoError(f"Recebimento {receipt_id} não encontrado.")
         return receipt
 
-    async def _ensure_proposal_in_scope(
-        self, proposal_id: int, scope: EscopoDePropostas
-    ) -> None:
+    async def _ensure_proposal_in_scope(self, proposal_id: int, scope: EscopoDePropostas) -> None:
         visible = await self._session.scalar(
             select(ProposalModel.id).where(
                 ProposalModel.id == proposal_id,

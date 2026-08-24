@@ -33,9 +33,7 @@ def _list_backup_objects(storage: Any, bucket: str, prefix: str) -> list[dict[st
     paginator = storage.get_paginator("list_objects_v2")
     objects: list[dict[str, Any]] = []
     for page in paginator.paginate(Bucket=bucket, Prefix=f"{prefix.rstrip('/')}/database/"):
-        objects.extend(
-            item for item in page.get("Contents", []) if item["Key"].endswith(".sql.gz")
-        )
+        objects.extend(item for item in page.get("Contents", []) if item["Key"].endswith(".sql.gz"))
     return objects
 
 
@@ -134,15 +132,11 @@ async def get_operations_status(
 async def run_backup(
     request: Request,
     uow: Uow,
-    actor: Annotated[
-        User, Depends(require_permission("admin:operations", "backups:run"))
-    ],
+    actor: Annotated[User, Depends(require_permission("admin:operations", "backups:run"))],
 ) -> BackupExecutionResponse:
     lock_key = "rfbalance:backup:manual-lock"
     lock_token = uuid.uuid4().hex
-    acquired = await request.app.state.redis.set(
-        lock_key, lock_token, ex=1800, nx=True
-    )
+    acquired = await request.app.state.redis.set(lock_key, lock_token, ex=1800, nx=True)
     if not acquired:
         raise BackupEmAndamentoError()
     try:

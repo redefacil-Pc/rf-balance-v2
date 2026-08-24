@@ -23,10 +23,13 @@ async def performance_client() -> AsyncIterator[AsyncClient]:
     from app.platform.db.seed_volumetric import PERFORMANCE_PASSWORD
 
     app: Any = criar_app()
-    async with LifespanManager(app), AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="https://performance",
-    ) as client:
+    async with (
+        LifespanManager(app),
+        AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="https://performance",
+        ) as client,
+    ):
         login = await client.post(
             "/api/v1/auth/login",
             json={

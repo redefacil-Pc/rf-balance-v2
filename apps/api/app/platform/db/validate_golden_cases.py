@@ -116,9 +116,7 @@ class GoldenCase:
         try:
             competence_date = date.fromisoformat(row["competence_date"])
         except Exception as error:
-            raise ValueError(
-                f"{row.get('case_id', '?')}: competence_date inválida"
-            ) from error
+            raise ValueError(f"{row.get('case_id', '?')}: competence_date inválida") from error
         return cls(
             case_id=row["case_id"].strip(),
             category=row["category"].strip().upper(),
@@ -178,9 +176,11 @@ class GoldenCaseExecutor:
         if case.operation_amount <= ZERO:
             raise ValueError("operação deve ser positiva em caso calculável")
 
-        company = PercentualTps.de(case.tps_percent).aplicar_sobre(
-            Dinheiro.de(case.operation_amount)
-        ).valor
+        company = (
+            PercentualTps.de(case.tps_percent)
+            .aplicar_sobre(Dinheiro.de(case.operation_amount))
+            .valor
+        )
         recognized = recognized_amount(case)
         eligible = min(recognized, company)
         consultant = ZERO

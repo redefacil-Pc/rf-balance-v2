@@ -28,6 +28,12 @@ import { useState } from 'react';
 
 import { useAuth } from '@/app/providers/AuthProvider';
 import { ReceiptCreateModal } from '@/features/proposals/components/ReceiptCreateModal';
+import {
+  formatarDataHora,
+  formatarPercentual,
+  ROTULO_DO_EVENTO,
+  somarValores,
+} from '@/features/proposals/components/proposal-approval-formatters';
 import { CommissionExplanationModal } from '@/features/receipts/components/CommissionExplanationModal';
 import {
   ReceiptProofPreviewButton,
@@ -50,38 +56,6 @@ interface Props {
   proposta: Proposal | null;
   onFechar: () => void;
   onDecidida?: (proposalId: number) => void;
-}
-
-const ROTULO_DO_EVENTO: Record<string, string> = {
-  'proposal.created': 'Proposta cadastrada',
-  'proposal.updated': 'Dados atualizados',
-  'proposal.submitted': 'Enviada ao Financeiro',
-  'proposal.approved': 'Proposta aprovada',
-  'proposal.rejected': 'Devolvida para correção',
-  'proposal.cancelled': 'Proposta cancelada',
-  'proposal.attachment_added': 'Documento adicionado',
-  'proposal.attachment_removed': 'Documento removido',
-};
-
-function formatarDataHora(valor: string | null): string {
-  if (!valor) return 'Horário não informado';
-  return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-    timeZone: 'America/Sao_Paulo',
-  }).format(new Date(valor));
-}
-
-function formatarPercentual(valor: string): string {
-  return `${Number(valor).toLocaleString('pt-BR', { maximumFractionDigits: 6 })}%`;
-}
-
-function somarValores(valores: string[]): string {
-  const centavos = valores.reduce((total, valor) => {
-    const [inteiro = '0', decimal = ''] = valor.split('.');
-    return total + BigInt(inteiro) * 100n + BigInt(decimal.padEnd(2, '0').slice(0, 2));
-  }, 0n);
-  return `${centavos / 100n}.${(centavos % 100n).toString().padStart(2, '0')}`;
 }
 
 /**

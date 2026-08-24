@@ -127,11 +127,7 @@ def run_restore_drill(settings: Settings, key: str | None = None) -> RestoreDril
     storage = settings.storage
     database = storage.backup_restore_database
     source_database = make_url(settings.database.migration_url).database
-    if (
-        not _SAFE_DATABASE.fullmatch(database)
-        or not source_database
-        or database == source_database
-    ):
+    if not _SAFE_DATABASE.fullmatch(database) or not source_database or database == source_database:
         raise RuntimeError("BACKUP_RESTORE_DATABASE é inseguro ou aponta para o banco principal")
     if not storage.backup_bucket:
         raise RuntimeError("BACKUP_BUCKET não foi configurado")

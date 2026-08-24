@@ -433,9 +433,7 @@ async def execute() -> int:
                 notes="R$ 80,00 adiados para demonstrar carryover",
             )
             await demo.pay_until(actor, previous.id, Decimal("120.00"), "DEMO-BKO-ANTERIOR")
-            await demo.ensure_period(
-                actor, demo.previous_start, demo.previous_end, close=True
-            )
+            await demo.ensure_period(actor, demo.previous_start, demo.previous_end, close=True)
 
         await demo.ensure_period(actor, demo.current_start, demo.current_end, close=False)
         await demo.generate(actor, demo.current_start, demo.current_end)

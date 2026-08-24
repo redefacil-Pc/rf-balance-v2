@@ -216,9 +216,9 @@ class CommissionSettlementManager:
                     beneficiary, Decimal("0")
                 ) + abs(value)
             else:
-                gross_by_beneficiary[beneficiary] = gross_by_beneficiary.get(
-                    beneficiary, Decimal("0")
-                ) + value
+                gross_by_beneficiary[beneficiary] = (
+                    gross_by_beneficiary.get(beneficiary, Decimal("0")) + value
+                )
         bonus_by_beneficiary: dict[int, Decimal] = {}
         for beneficiary_id, entry_type, amount in manual:
             target = (
@@ -249,9 +249,10 @@ class CommissionSettlementManager:
                 gross_by_beneficiary.setdefault(beneficiary_id, Decimal("0"))
             if previous.reversal_carryover_amount > 0:
                 gross_by_beneficiary.setdefault(beneficiary_id, Decimal("0"))
-                reversal_by_beneficiary[beneficiary_id] = reversal_by_beneficiary.get(
-                    beneficiary_id, Decimal("0")
-                ) + previous.reversal_carryover_amount
+                reversal_by_beneficiary[beneficiary_id] = (
+                    reversal_by_beneficiary.get(beneficiary_id, Decimal("0"))
+                    + previous.reversal_carryover_amount
+                )
         for beneficiary_id in reversal_by_beneficiary:
             gross_by_beneficiary.setdefault(beneficiary_id, Decimal("0"))
         for beneficiary_id, gross in gross_by_beneficiary.items():

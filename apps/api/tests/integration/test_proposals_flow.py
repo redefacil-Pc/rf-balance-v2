@@ -117,7 +117,9 @@ async def _criar_proposta(
     return resultado
 
 
-async def _registrar_recebimento_de_teste(proposal_id: int, *, amount: str = "100.00") -> None:
+async def _registrar_recebimento_de_teste(
+    proposal_id: int, *, amount: str = "100.00", created_by: int | None = None
+) -> None:
     """Prepara o estado comercial; o contrato HTTP do recebimento é coberto em seu módulo."""
     engine = criar_engine(get_settings().database)
     try:
@@ -131,7 +133,9 @@ async def _registrar_recebimento_de_teste(proposal_id: int, *, amount: str = "10
                 {"label": f"Conta da proposta {proposal_id}"},
             )
             conta = await conexao.scalar(text("SELECT LAST_INSERT_ID()"))
-            ator = await conexao.scalar(text("SELECT id FROM users ORDER BY id LIMIT 1"))
+            ator = created_by or await conexao.scalar(
+                text("SELECT id FROM users ORDER BY id LIMIT 1")
+            )
             await conexao.execute(
                 text(
                     "INSERT INTO receipts ("
@@ -414,7 +418,16 @@ async def test_anexo_solto_nao_substitui_recebimento_declarado(api: Api, consult
 
 async def test_fluxo_completo_de_aprovacao(api: Api, consultor: int) -> None:
     criada = await _criar_proposta(api, consultor)
-    await _registrar_recebimento_de_teste(criada["id"])
+    declarante = await api.post(
+        "/api/v1/users",
+        {
+            "email": "declarante-fluxo@rfbalance.local",
+            "full_name": "Pessoa Declarante",
+            "roles": ["OPERACIONAL"],
+        },
+    )
+    assert declarante.status_code == 201, declarante.text
+    await _registrar_recebimento_de_teste(criada["id"], created_by=int(declarante.json()["id"]))
 
     enviada = await api.post(
         f"/api/v1/proposals/{criada['id']}/submission", {"version": criada["version"]}
@@ -422,15 +435,9 @@ async def test_fluxo_completo_de_aprovacao(api: Api, consultor: int) -> None:
     assert enviada.status_code == 200, enviada.text
     assert enviada.json()["approval_status"] == "SUBMITTED"
 
-    listagem_operacional = await api.get(
-        "/api/v1/proposals", exclude_approval_status="SUBMITTED"
-    )
-    fila_do_financeiro = await api.get(
-        "/api/v1/proposals", approval_status="SUBMITTED"
-    )
-    assert criada["id"] not in {
-        item["id"] for item in listagem_operacional.json()["items"]
-    }
+    listagem_operacional = await api.get("/api/v1/proposals", exclude_approval_status="SUBMITTED")
+    fila_do_financeiro = await api.get("/api/v1/proposals", approval_status="SUBMITTED")
+    assert criada["id"] not in {item["id"] for item in listagem_operacional.json()["items"]}
     assert criada["id"] in {item["id"] for item in fila_do_financeiro.json()["items"]}
     pendentes = await api.get("/api/v1/proposals/pending-count")
     assert pendentes.status_code == 200

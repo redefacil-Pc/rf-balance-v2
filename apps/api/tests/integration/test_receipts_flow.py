@@ -516,9 +516,7 @@ async def test_sobrepagamento_sem_limite_pode_ser_aprovado(
         assert (
             await api.declarar(proposta["id"], chave="chave-limite-1", valor="1000.00")
         ).status_code == 201
-        excedente = await api.declarar(
-            proposta["id"], chave="chave-limite-2", valor="50000.00"
-        )
+        excedente = await api.declarar(proposta["id"], chave="chave-limite-2", valor="50000.00")
         assert excedente.status_code == 201, excedente.text
         versao = await _enviar(api, proposta["id"], proposta["version"])
 
@@ -713,9 +711,7 @@ async def test_operacional_nao_enxerga_comprovante_registrado_por_outra_pessoa(
         novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
     ) as api:
         proposta = await _rascunho(api, consultor)
-        receipt = (
-            await api.declarar(proposta["id"], chave="comprovante-fora-do-escopo")
-        ).json()
+        receipt = (await api.declarar(proposta["id"], chave="comprovante-fora-do-escopo")).json()
 
     intruso = await admin.post(
         "/api/v1/users",
@@ -1573,9 +1569,7 @@ async def test_download_do_comprovante_devolve_o_arquivo(
         recebimento = (await api.declarar(proposta["id"], chave="chave-comprovante")).json()
 
         baixado = await api.get(f"/api/v1/receipts/{recebimento['id']}/proof")
-        visualizado = await api.get(
-            f"/api/v1/receipts/{recebimento['id']}/proof", preview=True
-        )
+        visualizado = await api.get(f"/api/v1/receipts/{recebimento['id']}/proof", preview=True)
 
     assert baixado.status_code == 200
     assert baixado.content == PDF

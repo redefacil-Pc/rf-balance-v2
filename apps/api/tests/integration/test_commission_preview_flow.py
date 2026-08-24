@@ -140,10 +140,12 @@ async def test_previa_do_consultor_padrao_bate_com_a_comissao_efetivamente_credi
             headers=csrf,
         )
         assert enviada.status_code == 200, enviada.text
-        aprovada = await outro.post(
+        # Quem declarou não pode conferir o próprio recebimento. O administrador
+        # criou a proposta, mas não declarou o valor, portanto é um ator distinto.
+        aprovada = await cliente.post(
             f"/api/v1/proposals/{proposta.json()['id']}/decision",
             json={"version": enviada.json()["version"], "decision": "APROVAR"},
-            headers=csrf_fin,
+            headers=csrf,
         )
         assert aprovada.status_code == 200, aprovada.text
 

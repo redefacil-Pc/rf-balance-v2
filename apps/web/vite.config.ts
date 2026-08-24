@@ -25,6 +25,17 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Dependencias estaveis ficam fora do entrypoint e podem permanecer no
+        // cache entre deploys de regra de negocio.
+        manualChunks: {
+          'vendor-framework': ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
@@ -37,5 +48,18 @@ export default defineConfig({
     // máquina — 20 s continua acusando travamento sem reprovar quem só ficou
     // lento porque a suíte cresceu.
     testTimeout: 20_000,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'json-summary'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/main.tsx'],
+      // Baseline real da suite. O CI impede regressao e a meta de evolucao e 70%.
+      thresholds: {
+        statements: 54,
+        branches: 70,
+        functions: 55,
+        lines: 54,
+      },
+    },
   },
 });

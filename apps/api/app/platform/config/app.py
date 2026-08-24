@@ -14,6 +14,8 @@ class AppSettings(BaseSettings):
     app_timezone: str = "America/Sao_Paulo"
     log_level: str = "INFO"
     cors_allowed_origins: str = ""
+    # Token dedicado ao scraper. Em producao, /metrics nunca fica anonimo.
+    metrics_token: str = ""
 
     @property
     def is_production(self) -> bool:
