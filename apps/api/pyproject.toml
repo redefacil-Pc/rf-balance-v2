@@ -15,7 +15,7 @@ dependencies = [
     # exigido pelo caching_sha2_password, autenticação padrão do MySQL 8.4
     "cryptography>=43,<45",
     "redis>=5.2,<6",
-    "argon2-cffi>=23.1,<24",
+    "argon2-cffi>=23.1,<26",
     "structlog>=24.4,<25",
     "boto3>=1.35,<2",
     # exigido pelo FastAPI para `UploadFile` (upload de comprovante)
