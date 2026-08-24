@@ -16,7 +16,7 @@
     "dev:e2e": "cross-env VITE_API_PROXY_TARGET=http://127.0.0.1:8001 vite --host 127.0.0.1 --port 5174"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.9.1",
+    "@hookform/resolvers": "^5.9.1",
     "@mantine/core": "^7.15.1",
     "@mantine/hooks": "^7.15.1",
     "@mantine/notifications": "^7.15.1",
