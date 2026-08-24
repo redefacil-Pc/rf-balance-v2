@@ -18,7 +18,7 @@ export function useColaboradoresPorPapel(papel: string | readonly string[]) {
       const paginas = await Promise.all(
         papeis.map((funcao) =>
           requisitar<CollaboratorPage>(
-            `/collaborators?role=${funcao}&only_active=true&linked_user_only=true&limit=200`,
+            `/collaborators?role=${funcao}&only_active=true&limit=200`,
             { signal },
           ),
         ),

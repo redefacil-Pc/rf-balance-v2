@@ -6,19 +6,33 @@ import {
   Divider,
   Group,
   Modal,
+  Paper,
+  SimpleGrid,
   Stack,
   Table,
   Text,
   Textarea,
+  Timeline,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconAlertTriangle, IconCalculator, IconCash, IconDownload } from '@tabler/icons-react';
+import {
+  IconAlertTriangle,
+  IconCalculator,
+  IconCash,
+  IconCheck,
+  IconClock,
+  IconDownload,
+} from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { useAuth } from '@/app/providers/AuthProvider';
 import { ReceiptCreateModal } from '@/features/proposals/components/ReceiptCreateModal';
 import { CommissionExplanationModal } from '@/features/receipts/components/CommissionExplanationModal';
+import {
+  ReceiptProofPreviewButton,
+  ReceiptProofPreviewModal,
+} from '@/features/receipts/components/ReceiptProofPreviewModal';
 import { useDecideProposal } from '@/features/proposals/mutations/useDecideProposal';
 import { useSubmitProposal } from '@/features/proposals/mutations/useSubmitProposal';
 import { useProposal } from '@/features/proposals/queries/useProposal';
@@ -30,10 +44,36 @@ import {
   ROTULO_DA_APROVACAO,
   type Proposal,
 } from '@/shared/types/commercial';
+import type { Receipt } from '@/shared/types/receipts';
 
 interface Props {
   proposta: Proposal | null;
   onFechar: () => void;
+  onDecidida?: (proposalId: number) => void;
+}
+
+const ROTULO_DO_EVENTO: Record<string, string> = {
+  'proposal.created': 'Proposta cadastrada',
+  'proposal.updated': 'Dados atualizados',
+  'proposal.submitted': 'Enviada ao Financeiro',
+  'proposal.approved': 'Proposta aprovada',
+  'proposal.rejected': 'Devolvida para correção',
+  'proposal.cancelled': 'Proposta cancelada',
+  'proposal.attachment_added': 'Documento adicionado',
+  'proposal.attachment_removed': 'Documento removido',
+};
+
+function formatarDataHora(valor: string | null): string {
+  if (!valor) return 'Horário não informado';
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date(valor));
+}
+
+function formatarPercentual(valor: string): string {
+  return `${Number(valor).toLocaleString('pt-BR', { maximumFractionDigits: 6 })}%`;
 }
 
 function somarValores(valores: string[]): string {
@@ -55,18 +95,21 @@ function somarValores(valores: string[]): string {
  * pedir o mesmo documento nos dois lugares foi o que fez a proposta chegar ao
  * financeiro com comprovante e saldo zero.
  */
-export function ProposalApprovalModal({ proposta, onFechar }: Props) {
-  const { pode } = useAuth();
+export function ProposalApprovalModal({ proposta, onFechar, onDecidida }: Props) {
+  const { pode, usuario } = useAuth();
   const podeEscrever = pode('proposals:write');
   const podeAprovar = pode('proposals:approve');
-  const podeDeclararRecebimento = pode('receipts:write');
+  const podeDeclararRecebimento =
+    pode('receipts:write') && !(usuario?.roles.includes('ADMIN') ?? false);
 
   const [devolvendo, setDevolvendo] = useState(false);
+  const [confirmandoAprovacao, setConfirmandoAprovacao] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [recebimentoAberto, recebimento] = useDisclosure(false);
   const [calculo, setCalculo] = useState<
     { receiptId: number | null; proposalId: number | null } | null
   >(null);
+  const [comprovante, setComprovante] = useState<Receipt | null>(null);
 
   const detalhe = useProposal(proposta?.id ?? null);
   const recebimentos = useProposalReceipts(proposta?.id ?? null);
@@ -75,8 +118,19 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
 
   const fechar = () => {
     setDevolvendo(false);
+    setConfirmandoAprovacao(false);
     setMotivo('');
+    setComprovante(null);
     onFechar();
+  };
+
+  const concluirDecisao = (proposalId: number) => {
+    setDevolvendo(false);
+    setConfirmandoAprovacao(false);
+    setMotivo('');
+    setComprovante(null);
+    if (onDecidida) onDecidida(proposalId);
+    else onFechar();
   };
 
   if (!proposta) {
@@ -117,7 +171,11 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
 
   const aprovar = () => {
     decidir.mutate(
-      { id: proposta.id, version: proposta.version, decision: 'APROVAR' },
+      {
+        id: proposta.id,
+        version: detalhe.data?.version ?? proposta.version,
+        decision: 'APROVAR',
+      },
       {
         onSuccess: () => {
           notifications.show({
@@ -125,7 +183,7 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
             title: 'Proposta aprovada',
             message: `A proposta de ${proposta.customer_name} passa a valer para recebimento e comissão.`,
           });
-          fechar();
+          concluirDecisao(proposta.id);
         },
       },
     );
@@ -136,7 +194,12 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
       return;
     }
     decidir.mutate(
-      { id: proposta.id, version: proposta.version, decision: 'DEVOLVER', reason: motivo.trim() },
+      {
+        id: proposta.id,
+        version: detalhe.data?.version ?? proposta.version,
+        decision: 'DEVOLVER',
+        reason: motivo.trim(),
+      },
       {
         onSuccess: () => {
           notifications.show({
@@ -144,7 +207,7 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
             title: 'Proposta devolvida',
             message: 'Quem cadastrou pode corrigir e reenviar.',
           });
-          fechar();
+          concluirDecisao(proposta.id);
         },
       },
     );
@@ -157,7 +220,7 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
       opened={proposta !== null}
       onClose={fechar}
       title={`Aprovação — proposta de ${proposta.customer_name}`}
-      size="lg"
+      size="xl"
       centered
     >
       <Stack gap="md">
@@ -180,6 +243,54 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
           </Badge>
         </Group>
 
+        <Divider label="Dados para conferência" labelPosition="left" />
+
+        {detalhe.error && (
+          <Alert color="red" variant="light" title="Não foi possível carregar todos os dados">
+            {detalhe.error.problem.detail}
+          </Alert>
+        )}
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
+          <Paper withBorder p="sm">
+            <Text size="xs" c="dimmed">Cliente</Text>
+            <Text size="sm" fw={600}>{detalhe.data?.customer_name ?? proposta.customer_name}</Text>
+            <Text size="xs" ff="monospace">
+              {detalhe.data?.customer_document ?? proposta.customer_document}
+            </Text>
+          </Paper>
+          <Paper withBorder p="sm">
+            <Text size="xs" c="dimmed">Consultor</Text>
+            <Text size="sm" fw={600}>
+              {detalhe.data?.consultant_name ?? proposta.consultant_name}
+            </Text>
+            <Text size="xs" c="dimmed">
+              Finalização: {detalhe.data?.finalizer_collaborator_name ?? 'Não informada'}
+            </Text>
+            {detalhe.data?.bko_collaborator_name && (
+              <Text size="xs" c="dimmed">BKO: {detalhe.data.bko_collaborator_name}</Text>
+            )}
+          </Paper>
+          <Paper withBorder p="sm">
+            <Text size="xs" c="dimmed">Identificação</Text>
+            <Text size="sm" fw={600}>
+              Data: {proposta.business_date.split('-').reverse().join('/')}
+            </Text>
+            <Text size="xs" c="dimmed">ID externo: {proposta.external_id ?? 'Não informado'}</Text>
+          </Paper>
+          <Paper withBorder p="sm">
+            <Text size="xs" c="dimmed">Valor da operação</Text>
+            <Text size="lg" fw={700}>{formatarMoeda(proposta.operation_amount)}</Text>
+          </Paper>
+          <Paper withBorder p="sm">
+            <Text size="xs" c="dimmed">TPS</Text>
+            <Text size="lg" fw={700}>{formatarPercentual(proposta.tps_percentage)}</Text>
+          </Paper>
+          <Paper withBorder p="sm">
+            <Text size="xs" c="dimmed">Comissão da empresa</Text>
+            <Text size="lg" fw={700}>{formatarMoeda(proposta.company_commission_amount)}</Text>
+          </Paper>
+        </SimpleGrid>
+
         <Divider label="Valores recebidos" labelPosition="left" />
 
         <EstadoDaLista
@@ -188,11 +299,14 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
           vazio={(recebimentos.data?.items.length ?? 0) === 0}
           mensagemVazio="Nenhum recebimento declarado."
         >
+          <Table.ScrollContainer minWidth={900}>
           <Table verticalSpacing="xs">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Data</Table.Th>
                 <Table.Th>Forma</Table.Th>
+                <Table.Th>Conta / referência</Table.Th>
+                <Table.Th>Lançado por</Table.Th>
                 <Table.Th ta="right">Valor</Table.Th>
                 <Table.Th>Comprovante / cálculo</Table.Th>
               </Table.Tr>
@@ -201,7 +315,18 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
               {(recebimentos.data?.items ?? []).map((item) => (
                 <Table.Tr key={item.id}>
                   <Table.Td>{item.business_date.split('-').reverse().join('/')}</Table.Td>
-                  <Table.Td>{item.payment_method}</Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{item.payment_method}</Text>
+                    <Text size="xs" c="dimmed">{formatarDataHora(item.payment_datetime)}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{item.receiving_account_label ?? 'Conta não informada'}</Text>
+                    {item.reference && <Text size="xs" c="dimmed">{item.reference}</Text>}
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{item.creator_name}</Text>
+                    <Text size="xs" c="dimmed">{formatarDataHora(item.created_at)}</Text>
+                  </Table.Td>
                   <Table.Td ta="right">
                     <Stack gap={2} align="flex-end">
                       <Text size="sm">{formatarMoeda(item.net_amount)}</Text>
@@ -214,6 +339,7 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4} wrap="nowrap">
+                      <ReceiptProofPreviewButton onClick={() => setComprovante(item)} />
                       <ActionIcon
                         component="a"
                         href={`/api/v1/receipts/${item.id}/proof`}
@@ -235,6 +361,7 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
               ))}
             </Table.Tbody>
           </Table>
+          </Table.ScrollContainer>
           <Group justify="flex-end" mt="xs">
             {proposta.approval_status === 'APPROVED' && pode('settlements:read') && (
               <Button
@@ -249,6 +376,28 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
             <Text size="sm" fw={600}>Total declarado: {formatarMoeda(totalDeclarado)}</Text>
           </Group>
         </EstadoDaLista>
+
+        {(detalhe.data?.timeline.length ?? 0) > 0 && (
+          <>
+            <Divider label="Histórico da proposta" labelPosition="left" />
+            <Timeline bulletSize={24} lineWidth={2} active={detalhe.data!.timeline.length}>
+              {detalhe.data!.timeline.map((evento, indice) => (
+                <Timeline.Item
+                  key={`${evento.occurred_at}-${indice}`}
+                  bullet={<IconClock size={13} />}
+                  title={ROTULO_DO_EVENTO[evento.action] ?? evento.action}
+                >
+                  <Text size="xs" c="dimmed">
+                    {formatarDataHora(evento.occurred_at)} · {evento.actor_name}
+                  </Text>
+                  {typeof evento.payload.reason === 'string' && (
+                    <Text size="xs" mt={2}>Motivo: {evento.payload.reason}</Text>
+                  )}
+                </Timeline.Item>
+              ))}
+            </Timeline>
+          </>
+        )}
 
         {podeReceber && podeDeclararRecebimento && (
           <Button
@@ -267,6 +416,14 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
         )}
 
         <Divider />
+
+        {detalhe.data?.overpaid && (
+          <Alert color="orange" title="Sobrepagamento para conferência">
+            O valor recebido supera a comissão da empresa. Não há limite de negócio para o
+            excedente, mas ele só passa a valer com a sua aprovação e não gera comissão acima de
+            100% da base elegível.
+          </Alert>
+        )}
 
         <Group justify="space-between">
           <Button variant="default" onClick={fechar}>
@@ -294,7 +451,11 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
                 >
                   Devolver
                 </Button>
-                <Button color="positivo" onClick={aprovar} loading={decidir.isPending}>
+                <Button
+                  color="positivo"
+                  onClick={() => setConfirmandoAprovacao(true)}
+                  loading={decidir.isPending}
+                >
                   Aprovar e reconhecer valores
                 </Button>
               </>
@@ -340,6 +501,34 @@ export function ProposalApprovalModal({ proposta, onFechar }: Props) {
         proposalId={calculo?.proposalId ?? null}
         onClose={() => setCalculo(null)}
       />
+      <ReceiptProofPreviewModal receipt={comprovante} onClose={() => setComprovante(null)} />
+      <Modal
+        opened={confirmandoAprovacao}
+        onClose={() => setConfirmandoAprovacao(false)}
+        title="Confirmar aprovação"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            Confirma a aprovação da proposta de <strong>{proposta.customer_name}</strong> no valor
+            de <strong>{formatarMoeda(proposta.operation_amount)}</strong>? Os recebimentos serão
+            reconhecidos e as comissões serão calculadas.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmandoAprovacao(false)}>
+              Voltar para análise
+            </Button>
+            <Button
+              color="positivo"
+              leftSection={<IconCheck size={16} />}
+              onClick={aprovar}
+              loading={decidir.isPending}
+            >
+              Confirmar aprovação
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Modal>
   );
 }

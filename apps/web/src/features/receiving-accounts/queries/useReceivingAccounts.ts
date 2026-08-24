@@ -6,11 +6,12 @@ import type { ReceivingAccount } from '@/shared/types/receiving-accounts';
 
 const key = (apenasAtivas: boolean) => ['receiving-accounts', { apenasAtivas }] as const;
 
-export function useReceivingAccounts(apenasAtivas = false) {
+export function useReceivingAccounts(apenasAtivas = false, habilitada = true) {
   return useQuery<ReceivingAccount[], ApiError>({
     queryKey: key(apenasAtivas),
     queryFn: ({ signal }) =>
       requisitar(`/receiving-accounts${apenasAtivas ? '?only_active=true' : ''}`, { signal }),
+    enabled: habilitada,
   });
 }
 

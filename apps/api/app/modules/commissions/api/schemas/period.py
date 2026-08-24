@@ -35,4 +35,6 @@ class CommissionPeriodResponse(BaseModel):
     closed_by: int | None
     reopened_at: datetime | None
     reopened_by: int | None
+    reopen_requested_at: datetime | None
+    reopen_requested_by: int | None
     reopen_reason: str | None

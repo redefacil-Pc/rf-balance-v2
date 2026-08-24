@@ -27,7 +27,7 @@ export function MenuDoUsuario() {
   return (
     <Menu position="bottom-end" withinPortal>
       <Menu.Target>
-        <UnstyledButton aria-label="Menu do usuário">
+        <UnstyledButton aria-label="Menu do usuário" className="rf-user-menu">
           <Group gap="xs">
             <Avatar color="marca" radius="xl" size={30}>
               {iniciais(usuario.full_name)}

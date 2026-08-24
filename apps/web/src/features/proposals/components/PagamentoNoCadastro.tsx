@@ -1,17 +1,21 @@
 import { Alert, Button, FileButton, Group, Select, Stack, Text, TextInput } from '@mantine/core';
 import { IconPaperclip } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
-import { useCreateReceipt } from '@/features/proposals/mutations/useCreateReceipt';
+import type { InitialReceiptInput } from '@/features/proposals/mutations/useCreateProposal';
 import { useReceivingAccounts } from '@/features/receiving-accounts/queries/useReceivingAccounts';
 import { mascararMoeda, moedaParaDecimal } from '@/shared/formatters/money-mask';
 
-const HOJE = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-const AGORA = new Date().toLocaleTimeString('pt-BR', {
-  timeZone: 'America/Sao_Paulo',
-  hour: '2-digit',
-  minute: '2-digit',
-});
+export function obterDataHoraEmSaoPaulo(agora = new Date()) {
+  return {
+    data: agora.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
+    hora: agora.toLocaleTimeString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+  };
+}
 
 /**
  * O pagamento declarado junto do cadastro da proposta.
@@ -21,12 +25,13 @@ const AGORA = new Date().toLocaleTimeString('pt-BR', {
  * valor sem comprovante, sem forma ou sem conta é meio registro, e meio
  * comprovante é pior que nenhum, porque parece completo na listagem.
  */
-export function usePagamentoNoCadastro() {
-  const criar = useCreateReceipt();
-  const contas = useReceivingAccounts(true);
+export function usePagamentoNoCadastro(habilitado = true) {
+  const contas = useReceivingAccounts(true, habilitado);
+  const [instanteInicial] = useState(obterDataHoraEmSaoPaulo);
   const [valor, setValor] = useState('');
-  const [data, setData] = useState(HOJE);
-  const [hora, setHora] = useState(AGORA);
+  const [data, setData] = useState(instanteInicial.data);
+  const [dataMaxima, setDataMaxima] = useState(instanteInicial.data);
+  const [hora, setHora] = useState(instanteInicial.hora);
   const [forma, setForma] = useState<string | null>('PIX');
   const [conta, setConta] = useState<string | null>(null);
   const [comprovante, setComprovante] = useState<File | null>(null);
@@ -37,6 +42,29 @@ export function usePagamentoNoCadastro() {
   const decimal = moedaParaDecimal(valor);
   const preenchido = decimal !== '' && Number(decimal) > 0;
   const completo = preenchido && Boolean(forma) && Boolean(conta) && comprovante !== null;
+  const receipt: InitialReceiptInput | null = completo
+    ? {
+        amount: decimal,
+        businessDate: data,
+        paymentTime: hora,
+        paymentMethod: forma as string,
+        receivingAccountId: Number(conta),
+        proof: comprovante as File,
+        idempotencyKey: chave,
+      }
+    : null;
+
+  const limpar = useCallback(() => {
+    const atual = obterDataHoraEmSaoPaulo();
+    setValor('');
+    setData(atual.data);
+    setDataMaxima(atual.data);
+    setHora(atual.hora);
+    setForma('PIX');
+    setConta(null);
+    setComprovante(null);
+    setChave(crypto.randomUUID());
+  }, []);
 
   return {
     campos: {
@@ -44,6 +72,7 @@ export function usePagamentoNoCadastro() {
       setValor,
       data,
       setData,
+      dataMaxima,
       hora,
       setHora,
       forma,
@@ -56,29 +85,8 @@ export function usePagamentoNoCadastro() {
     },
     preenchido,
     completo,
-    limpar: () => {
-      setValor('');
-      setData(HOJE);
-      setHora(AGORA);
-      setForma('PIX');
-      setConta(null);
-      setComprovante(null);
-      setChave(crypto.randomUUID());
-    },
-    declarar: async (proposalId: number) => {
-      await criar.mutateAsync({
-        proposalId,
-        amount: decimal,
-        businessDate: data,
-        paymentTime: hora,
-        paymentMethod: forma as string,
-        receivingAccountId: Number(conta),
-        reference: '',
-        notes: '',
-        proof: comprovante as File,
-        idempotencyKey: chave,
-      });
-    },
+    receipt,
+    limpar,
   };
 }
 
@@ -110,7 +118,7 @@ export function PagamentoNoCadastro({ pagamento }: { pagamento: Pagamento }) {
         <TextInput
           label="Data do pagamento"
           type="date"
-          max={HOJE}
+          max={campos.dataMaxima}
           disabled={!preenchido}
           value={campos.data}
           onChange={(evento) => campos.setData(evento.currentTarget.value)}

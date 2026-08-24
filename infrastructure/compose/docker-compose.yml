@@ -22,12 +22,24 @@ x-api-base: &api-base
     # extração do legado para o importador em dry-run; `data/` é gitignorado,
     # porque o dump do v1 tem PII real e não pode entrar no repositório
     - ../../data/legado:/dados/legado
+    # casos dourados entram somente leitura; o relatório gerado fica fora do código
+    - ../../docs/business-rules:/dados/homologacao:ro
+    - ../../data/homologacao:/dados/homologacao-output
+    # segunda cópia do backup, independente do object storage remoto
+    - backupreplica:/backup-replica
   depends_on:
     db: { condition: service_healthy }
     redis: { condition: service_healthy }
+    backup-init: { condition: service_completed_successfully }
   restart: unless-stopped
 
 services:
+  backup-init:
+    image: alpine:3.21
+    command: ["chown", "-R", "1000:1000", "/backup-replica"]
+    volumes: [backupreplica:/backup-replica]
+    restart: "no"
+
   api:
     <<: *api-base
     command:
@@ -153,3 +165,4 @@ volumes:
   dbdata:
   redisdata:
   miniodata:
+  backupreplica:

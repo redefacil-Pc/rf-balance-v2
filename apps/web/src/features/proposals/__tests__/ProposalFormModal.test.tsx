@@ -30,7 +30,7 @@ function responderJson(dados: unknown, status = 200): Response {
   });
 }
 
-function renderizar() {
+function renderizar(podeDeclararPagamento = true) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -38,7 +38,11 @@ function renderizar() {
   return render(
     <MantineProvider>
       <QueryClientProvider client={client}>
-        <ProposalFormModal aberto onFechar={() => undefined} />
+        <ProposalFormModal
+          aberto
+          podeDeclararPagamento={podeDeclararPagamento}
+          onFechar={() => undefined}
+        />
       </QueryClientProvider>
     </MantineProvider>,
   );
@@ -90,6 +94,18 @@ describe('ProposalFormModal', () => {
     for (const rotulo of rotulos) {
       expect(screen.getAllByLabelText(rotulo).length).toBeGreaterThan(0);
     }
+  });
+
+  it('não oferece pagamento nem busca contas para quem não pode declarar', async () => {
+    renderizar(false);
+
+    await screen.findByLabelText(/^cliente\s*\*?$/i);
+    expect(screen.queryByLabelText(/^valor pago/i)).not.toBeInTheDocument();
+    expect(
+      vi.mocked(globalThis.fetch).mock.calls.some(([url]) =>
+        String(url).includes('/receiving-accounts'),
+      ),
+    ).toBe(false);
   });
 
   it('valida no cliente antes de chamar a API', async () => {

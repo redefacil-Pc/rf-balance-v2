@@ -46,14 +46,14 @@ Detalhes de decisão estão em [`f4-motor-comissao.md`](f4-motor-comissao.md).
 Entregue:
 
 - read model e tela de dashboard;
-- relatório financeiro geral e por beneficiário, com export PDF e XLSX
-  compartilhando os mesmos totais da tela;
+- relatório financeiro geral, por beneficiário, equipe e unidade, com export
+  PDF e XLSX compartilhando os mesmos totais e recortes da tela;
+- geração assíncrona e retomável de PDFs por beneficiário e ZIP, persistida em
+  `document_jobs` e `stored_documents`, com progresso, retry e dead-letter;
 - console de consulta da auditoria append-only.
 
 Ainda **não** entregue:
 
-- relatório por equipe e por unidade;
-- geração de documentos em lote: `document_jobs`, `stored_documents` e ZIP;
 - orçamento de performance como teste: o marcador `performance` existe no
   `pyproject.toml`, mas nenhum teste mede o p95 do dashboard ou do relatório;
 - seed volumétrico da Trilha P, que é o que faria a lentidão aparecer em
@@ -94,7 +94,6 @@ Continuam valendo os quatro itens de F1–F3, mais estes:
    e assina os valores;
 2. os casos dourados do v1 são comparados contra o v2 — divergência precisa ser
    classificada como erro do v2, erro do v1 ou mudança intencional;
-3. as decisões abertas da seção 6 do plano faseado são fechadas em ADR, em
-   especial a dupla aprovação para reabertura de período (hoje a reabertura
-   exige apenas a permissão `periods:reopen`) e o tratamento de estorno
-   retroativo.
+3. as decisões da seção 6 foram fechadas no ADR 0016: reabertura exige duas
+   pessoas distintas, estorno vira desconto carregável, liderança não vende e
+   sobrepagamento pode ser aprovado sem limite de negócio.

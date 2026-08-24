@@ -59,6 +59,16 @@ class SqlReceiptRecognizer:
         await self._session.flush()
         return await self.total(proposal_id)
 
+    async def foi_declarado_por(self, proposal_id: int, actor: int) -> bool:
+        receipt_id = await self._session.scalar(
+            select(ReceiptModel.id).where(
+                ReceiptModel.proposal_id == proposal_id,
+                ReceiptModel.created_by == actor,
+                ReceiptModel.status == DECLARADO,
+            )
+        )
+        return receipt_id is not None
+
     async def total(self, proposal_id: int) -> Dinheiro:
         """Total reconhecido e não estornado."""
         estornado = self._estornado_por_recebimento()

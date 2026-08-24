@@ -86,12 +86,11 @@ class Proposal:
     def sobrepago(self) -> bool:
         return self._classificacao() is tolerancia.ResultadoDeQuitacao.SOBREPAGAMENTO
 
-    def enviar_para_aprovacao(self, *, quantidade_de_comprovantes: int) -> None:
-        """Envia ao financeiro. Sem comprovante não envia: quem aprova precisa
-        conferir o pagamento do cliente contra o valor declarado."""
+    def enviar_para_aprovacao(self, *, quantidade_de_recebimentos: int) -> None:
+        """Envia ao Financeiro somente com um valor e seu comprovante vinculados."""
         self._exigir_ativa()
         self._transicionar_aprovacao(SituacaoDeAprovacao.SUBMITTED)
-        if quantidade_de_comprovantes < 1:
+        if quantidade_de_recebimentos < 1:
             raise PropostaSemComprovanteError()
         self.approval_status = SituacaoDeAprovacao.SUBMITTED
         # o motivo da devolução anterior deixa de valer no reenvio

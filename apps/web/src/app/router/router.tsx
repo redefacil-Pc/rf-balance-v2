@@ -1,61 +1,40 @@
-import { createBrowserRouter, type RouteObject } from 'react-router-dom';
+import { Center, Loader } from '@mantine/core';
+import { lazy, Suspense, type ReactNode } from 'react';
+import { createBrowserRouter } from 'react-router-dom';
 
 import { AppLayout } from '@/app/layouts/AppLayout';
 import { ProtectedRoute } from '@/app/router/ProtectedRoute';
-import { LoginPage } from '@/features/auth/pages/LoginPage';
-import { AuditPage } from '@/features/audit/pages/AuditPage';
-import { CollaboratorsPage } from '@/features/collaborators/pages/CollaboratorsPage';
-import { CommissionRulesPage } from '@/features/commission-rules/pages/CommissionRulesPage';
-import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
-import { ProposalsPage } from '@/features/proposals/pages/ProposalsPage';
-import { ProposalApprovalsPage } from '@/features/proposals/pages/ProposalApprovalsPage';
-import { PeriodsPage } from '@/features/periods/pages/PeriodsPage';
-import { ReceiptsPage } from '@/features/receipts/pages/ReceiptsPage';
-import { FinancialReportPage } from '@/features/reports/pages/FinancialReportPage';
-import { SettlementsPage } from '@/features/settlements/pages/SettlementsPage';
-import { TeamsPage } from '@/features/teams/pages/TeamsPage';
-import { ReceivingAccountsPage } from '@/features/receiving-accounts/pages/ReceivingAccountsPage';
-import { UnitsPage } from '@/features/units/pages/UnitsPage';
-import { UsersPage } from '@/features/users/pages/UsersPage';
-import { TelaPendente } from '@/shared/components/TelaPendente';
 
-/**
- * Rotas da seção 10.3 do blueprint. Toda rota nasce protegida e com a permissão
- * declarada; as que dependem de fases seguintes mostram `TelaPendente` em vez de
- * dado simulado.
- */
-interface Pendente {
-  caminho: string;
-  titulo: string;
-  permissao: string;
-  fase: string;
-  descricao: string;
+const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage').then((module) => ({ default: module.LoginPage })));
+const OperationsPage = lazy(() => import('@/features/operations/pages/OperationsPage').then((module) => ({ default: module.OperationsPage })));
+const AuditPage = lazy(() => import('@/features/audit/pages/AuditPage').then((module) => ({ default: module.AuditPage })));
+const CollaboratorsPage = lazy(() => import('@/features/collaborators/pages/CollaboratorsPage').then((module) => ({ default: module.CollaboratorsPage })));
+const CommissionRulesPage = lazy(() => import('@/features/commission-rules/pages/CommissionRulesPage').then((module) => ({ default: module.CommissionRulesPage })));
+const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
+const ProposalsPage = lazy(() => import('@/features/proposals/pages/ProposalsPage').then((module) => ({ default: module.ProposalsPage })));
+const ProposalApprovalsPage = lazy(() => import('@/features/proposals/pages/ProposalApprovalsPage').then((module) => ({ default: module.ProposalApprovalsPage })));
+const PeriodsPage = lazy(() => import('@/features/periods/pages/PeriodsPage').then((module) => ({ default: module.PeriodsPage })));
+const ReceiptsPage = lazy(() => import('@/features/receipts/pages/ReceiptsPage').then((module) => ({ default: module.ReceiptsPage })));
+const FinancialReportPage = lazy(() => import('@/features/reports/pages/FinancialReportPage').then((module) => ({ default: module.FinancialReportPage })));
+const SettlementsPage = lazy(() => import('@/features/settlements/pages/SettlementsPage').then((module) => ({ default: module.SettlementsPage })));
+const TeamsPage = lazy(() => import('@/features/teams/pages/TeamsPage').then((module) => ({ default: module.TeamsPage })));
+const ReceivingAccountsPage = lazy(() => import('@/features/receiving-accounts/pages/ReceivingAccountsPage').then((module) => ({ default: module.ReceivingAccountsPage })));
+const UnitsPage = lazy(() => import('@/features/units/pages/UnitsPage').then((module) => ({ default: module.UnitsPage })));
+const UsersPage = lazy(() => import('@/features/users/pages/UsersPage').then((module) => ({ default: module.UsersPage })));
+
+function withPageLoading(page: ReactNode): ReactNode {
+  return (
+    <Suspense fallback={<Center mih="50vh"><Loader aria-label="Carregando página" /></Center>}>
+      {page}
+    </Suspense>
+  );
 }
 
-const pendentes: Pendente[] = [
-  {
-    caminho: '/admin/operations',
-    titulo: 'Operações administrativas',
-    permissao: 'admin:operations',
-    fase: 'F6',
-    descricao: 'Verificação de integridade, recálculo controlado e rotinas operacionais.',
-  },
-];
-
-const rotasPendentes: RouteObject[] = pendentes.map((tela) => ({
-  path: tela.caminho,
-  element: (
-    <ProtectedRoute permissao={tela.permissao}>
-      <TelaPendente titulo={tela.titulo} fase={tela.fase} descricao={tela.descricao} />
-    </ProtectedRoute>
-  ),
-}));
-
 export const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
+  { path: '/login', element: withPageLoading(<LoginPage />) },
   {
     path: '/',
-    element: (
+    element: withPageLoading(
       <ProtectedRoute>
         <AppLayout />
       </ProtectedRoute>
@@ -119,6 +98,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: '/admin/operations',
+        element: (
+          <ProtectedRoute permissao="admin:operations">
+            <OperationsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: '/units',
         element: (
           <ProtectedRoute permissao="collaborators:read">
@@ -174,7 +161,6 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      ...rotasPendentes,
     ],
   },
 ]);

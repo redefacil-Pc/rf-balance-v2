@@ -79,7 +79,7 @@ class CreateProposalHandler:
         self._cipher = cipher
         self._audit = audit
 
-    async def execute(self, cmd: CreateProposal) -> PropostaCriada:
+    async def execute(self, cmd: CreateProposal, *, commit: bool = True) -> PropostaCriada:
         documento = self._normalizar_documento(cmd.customer_document)
         await self._validar_participantes(cmd)
         await self._validar_external_id(cmd.external_id)
@@ -121,7 +121,8 @@ class CreateProposalHandler:
                 "customer_document_hash": self._cipher.hash_de_busca(documento.digitos),
             },
         )
-        await self._uow.commit()
+        if commit:
+            await self._uow.commit()
 
         return PropostaCriada(
             id=proposta.id,
@@ -169,6 +170,11 @@ class CreateProposalHandler:
                 cmd.consultant_id, cmd.business_date
             )
         }
+        papeis_de_lideranca = {"LIDER", "LIDER_MEI_GERAL", "LIDER_FINALIZACAO"}
+        if papeis_do_consultor & papeis_de_lideranca:
+            raise ParticipanteInvalidoError(
+                "Liderança não realiza venda e não pode ser indicada como consultor da proposta."
+            )
         if not papeis_do_consultor.intersection({"CONSULTOR", "CONSULTOR_MEI_ESCALONADO"}):
             raise ParticipanteInvalidoError(
                 "O colaborador não possui função de consultor vigente na data do negócio."

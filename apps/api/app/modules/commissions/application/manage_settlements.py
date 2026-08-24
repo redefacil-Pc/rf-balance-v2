@@ -177,12 +177,16 @@ class CommissionSettlementManager:
         await self._ensure_open(period_start, period_end)
         automatic = (
             await self._session.execute(
-                select(CommissionEntryModel.beneficiary_id, func.sum(CommissionEntryModel.amount))
+                select(
+                    CommissionEntryModel.beneficiary_id,
+                    CommissionEntryModel.entry_type,
+                    func.sum(CommissionEntryModel.amount),
+                )
                 .where(
                     CommissionEntryModel.competence_date >= period_start,
                     CommissionEntryModel.competence_date <= period_end,
                 )
-                .group_by(CommissionEntryModel.beneficiary_id)
+                .group_by(CommissionEntryModel.beneficiary_id, CommissionEntryModel.entry_type)
             )
         ).all()
         manual = (
@@ -203,10 +207,18 @@ class CommissionSettlementManager:
             )
         ).all()
         gross_by_beneficiary: dict[int, Decimal] = {}
-        for beneficiary_id, amount in automatic:
-            gross_by_beneficiary[int(beneficiary_id)] = gross_by_beneficiary.get(
-                int(beneficiary_id), Decimal("0")
-            ) + Decimal(amount)
+        reversal_by_beneficiary: dict[int, Decimal] = {}
+        for beneficiary_id, entry_type, amount in automatic:
+            beneficiary = int(beneficiary_id)
+            value = Decimal(amount)
+            if entry_type == "DEBIT" and value < 0:
+                reversal_by_beneficiary[beneficiary] = reversal_by_beneficiary.get(
+                    beneficiary, Decimal("0")
+                ) + abs(value)
+            else:
+                gross_by_beneficiary[beneficiary] = gross_by_beneficiary.get(
+                    beneficiary, Decimal("0")
+                ) + value
         bonus_by_beneficiary: dict[int, Decimal] = {}
         for beneficiary_id, entry_type, amount in manual:
             target = (
@@ -235,6 +247,13 @@ class CommissionSettlementManager:
         for beneficiary_id, previous in latest_by_beneficiary.items():
             if previous.status == "DEFERRED" and previous.deferred_amount > 0:
                 gross_by_beneficiary.setdefault(beneficiary_id, Decimal("0"))
+            if previous.reversal_carryover_amount > 0:
+                gross_by_beneficiary.setdefault(beneficiary_id, Decimal("0"))
+                reversal_by_beneficiary[beneficiary_id] = reversal_by_beneficiary.get(
+                    beneficiary_id, Decimal("0")
+                ) + previous.reversal_carryover_amount
+        for beneficiary_id in reversal_by_beneficiary:
+            gross_by_beneficiary.setdefault(beneficiary_id, Decimal("0"))
         for beneficiary_id, gross in gross_by_beneficiary.items():
             settlement = await self._session.scalar(
                 select(CommissionSettlementModel)
@@ -259,6 +278,11 @@ class CommissionSettlementManager:
                         CENTAVO
                     ),
                     discount_amount=Decimal("0.00"),
+                    manual_discount_amount=Decimal("0.00"),
+                    reversal_discount_amount=Decimal("0.00"),
+                    reversal_carryover_amount=reversal_by_beneficiary.get(
+                        beneficiary_id, Decimal("0")
+                    ).quantize(CENTAVO),
                     deferred_amount=Decimal("0.00"),
                     paid_amount=Decimal("0.00"),
                     payable_amount=Decimal("0.00"),
@@ -272,7 +296,12 @@ class CommissionSettlementManager:
                 settlement.carryover_amount = carryover
                 if beneficiary_id in bonus_by_beneficiary:
                     settlement.bonus_amount = bonus_by_beneficiary[beneficiary_id].quantize(CENTAVO)
+                settlement.reversal_carryover_amount = reversal_by_beneficiary.get(
+                    beneficiary_id, Decimal("0")
+                ).quantize(CENTAVO)
+                settlement.reversal_discount_amount = Decimal("0.00")
                 settlement.updated_by = actor
+            self._apply_reversal_discount(settlement)
             self._recalculate(settlement)
         await self._session.flush()
         self._audit.registrar(
@@ -333,7 +362,7 @@ class CommissionSettlementManager:
         if any(value < 0 for value in amounts):
             raise CommissionRuleConfigurationError("Ajustes não podem ser negativos.")
         settlement.bonus_amount = bonus_amount.quantize(CENTAVO)
-        settlement.discount_amount = discount_amount.quantize(CENTAVO)
+        settlement.manual_discount_amount = discount_amount.quantize(CENTAVO)
         settlement.deferred_amount = deferred_amount.quantize(CENTAVO)
         available = (
             settlement.gross_amount
@@ -341,12 +370,13 @@ class CommissionSettlementManager:
             + settlement.bonus_amount
             - settlement.paid_amount
         )
-        if settlement.discount_amount + settlement.deferred_amount > available:
+        if settlement.manual_discount_amount + settlement.deferred_amount > available:
             raise CommissionRuleConfigurationError(
                 "Desconto e adiamento não podem exceder o saldo bruto disponível."
             )
         settlement.notes = notes.strip() if notes else None
         settlement.updated_by = actor
+        self._apply_reversal_discount(settlement)
         self._recalculate(settlement)
         await self._record_change(
             settlement, "commission.settlement_adjusted", actor, correlation_id
@@ -430,7 +460,7 @@ class CommissionSettlementManager:
             select(CommissionPeriodModel.id).where(
                 CommissionPeriodModel.period_start == period_start,
                 CommissionPeriodModel.period_end == period_end,
-                CommissionPeriodModel.status == "CLOSED",
+                CommissionPeriodModel.status != "OPEN",
             )
         )
         if closed is not None:
@@ -498,6 +528,26 @@ class CommissionSettlementManager:
             )
             is not None
         )
+
+    @staticmethod
+    def _apply_reversal_discount(settlement: CommissionSettlementModel) -> None:
+        debt = settlement.reversal_discount_amount + settlement.reversal_carryover_amount
+        available = max(
+            settlement.gross_amount
+            + settlement.carryover_amount
+            + settlement.bonus_amount
+            - settlement.manual_discount_amount
+            - settlement.deferred_amount
+            - settlement.paid_amount,
+            Decimal("0.00"),
+        )
+        settlement.reversal_discount_amount = min(debt, available).quantize(CENTAVO)
+        settlement.reversal_carryover_amount = max(
+            debt - settlement.reversal_discount_amount, Decimal("0.00")
+        ).quantize(CENTAVO)
+        settlement.discount_amount = (
+            settlement.manual_discount_amount + settlement.reversal_discount_amount
+        ).quantize(CENTAVO)
 
     @staticmethod
     def _recalculate(settlement: CommissionSettlementModel) -> None:

@@ -75,6 +75,14 @@ export interface ProposalDetail extends Proposal {
   settled_at: string | null;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  timeline: ProposalTimelineEvent[];
+}
+
+export interface ProposalTimelineEvent {
+  action: string;
+  occurred_at: string;
+  actor_name: string;
+  payload: Record<string, unknown>;
 }
 
 export interface ProposalPage {

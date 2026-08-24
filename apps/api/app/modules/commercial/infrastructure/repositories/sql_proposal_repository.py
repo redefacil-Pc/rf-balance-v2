@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from sqlalchemy import ColumnElement, Select, and_, false, or_, select
+from sqlalchemy import ColumnElement, Select, and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.commercial.application.ports.proposal_scope import EscopoDePropostas
@@ -36,6 +36,8 @@ class FiltroDePropostas:
     status: str | None = None
     #: fila do financeiro: SUBMITTED lista o que aguarda decisão
     approval_status: str | None = None
+    #: listagem operacional: o que está na fila do Financeiro fica fora dela
+    exclude_approval_status: str | None = None
     consultant_id: int | None = None
     bko_collaborator_id: int | None = None
     finalizer_collaborator_id: int | None = None
@@ -194,6 +196,11 @@ class SqlProposalRepository:
 
         return encontradas[:limite], len(encontradas) > limite
 
+    async def contar(self, filtro: FiltroDePropostas) -> int:
+        consulta = self._aplicar_filtros(select(ProposalModel), filtro)
+        subconsulta = consulta.with_only_columns(ProposalModel.id).subquery()
+        return int(await self._session.scalar(select(func.count()).select_from(subconsulta)) or 0)
+
     async def _linha(
         self, proposal_id: int, *, para_atualizacao: bool = False
     ) -> ProposalModel | None:
@@ -211,6 +218,10 @@ class SqlProposalRepository:
             consulta = consulta.where(ProposalModel.status == filtro.status)
         if filtro.approval_status is not None:
             consulta = consulta.where(ProposalModel.approval_status == filtro.approval_status)
+        if filtro.exclude_approval_status is not None:
+            consulta = consulta.where(
+                ProposalModel.approval_status != filtro.exclude_approval_status
+            )
         if filtro.consultant_id is not None:
             consulta = consulta.where(ProposalModel.consultant_id == filtro.consultant_id)
         if filtro.bko_collaborator_id is not None:

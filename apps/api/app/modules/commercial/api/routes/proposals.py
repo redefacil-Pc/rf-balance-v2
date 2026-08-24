@@ -30,6 +30,7 @@ from app.modules.commercial.api.schemas.proposal import (
     CancelProposalRequest,
     DecisionRequest,
     DecisionResponse,
+    PendingProposalCountResponse,
     ProposalCancelResponse,
     ProposalDetailResponse,
     ProposalPageResponse,
@@ -81,6 +82,7 @@ from app.modules.commercial.application.queries.list_proposals import (
     ListProposals,
     ListProposalsHandler,
 )
+from app.modules.commercial.domain.errors import ComprovanteInvalidoError
 from app.modules.commercial.domain.value_objects.situacao_de_aprovacao import SituacaoDeAprovacao
 from app.modules.commercial.domain.value_objects.status_da_proposta import StatusDaProposta
 from app.modules.commercial.infrastructure.repositories.sql_proposal_repository import (
@@ -88,7 +90,9 @@ from app.modules.commercial.infrastructure.repositories.sql_proposal_repository 
 )
 from app.modules.identity.api.dependencies import require_permission
 from app.modules.identity.domain.entities.user import User
+from app.platform.http.content_disposition import content_disposition
 from app.platform.http.pagination import Cursor, normalizar_limite
+from app.platform.http.uploads import read_upload_limited
 
 router = APIRouter(prefix="/api/v1/proposals", tags=["commercial"])
 
@@ -134,6 +138,7 @@ async def listar(
     handler: Annotated[ListProposalsHandler, Depends(get_list_proposals_handler)],
     proposal_status: Annotated[StatusDaProposta | None, Query(alias="status")] = None,
     approval_status: Annotated[SituacaoDeAprovacao | None, Query()] = None,
+    exclude_approval_status: Annotated[SituacaoDeAprovacao | None, Query()] = None,
     consultant_id: Annotated[int | None, Query()] = None,
     bko_collaborator_id: Annotated[int | None, Query()] = None,
     finalizer_collaborator_id: Annotated[int | None, Query()] = None,
@@ -149,6 +154,9 @@ async def listar(
             filtro=FiltroDePropostas(
                 status=proposal_status.value if proposal_status else None,
                 approval_status=approval_status.value if approval_status else None,
+                exclude_approval_status=(
+                    exclude_approval_status.value if exclude_approval_status else None
+                ),
                 consultant_id=consultant_id,
                 bko_collaborator_id=bko_collaborator_id,
                 finalizer_collaborator_id=finalizer_collaborator_id,
@@ -168,6 +176,18 @@ async def listar(
         items=[ProposalResponse(**asdict(item)) for item in pagina.itens],
         next_cursor=pagina.proximo_cursor,
     )
+
+
+@router.get("/pending-count", response_model=PendingProposalCountResponse)
+async def contar_pendentes(
+    _ator: Annotated[User, Depends(require_permission("proposals:approve"))],
+    escopo: Escopo,
+    handler: Annotated[ListProposalsHandler, Depends(get_list_proposals_handler)],
+) -> PendingProposalCountResponse:
+    quantidade = await handler.count(
+        FiltroDePropostas(approval_status="SUBMITTED", escopo=escopo)
+    )
+    return PendingProposalCountResponse(count=quantidade)
 
 
 @router.get("/{proposal_id}", response_model=ProposalDetailResponse)
@@ -310,7 +330,10 @@ async def anexar_comprovante(
     handler: Annotated[AddProposalAttachmentHandler, Depends(get_add_attachment_handler)],
     file: Annotated[UploadFile, File()],
 ) -> AttachmentUploadResponse:
-    conteudo = await file.read()
+    try:
+        conteudo = await read_upload_limited(file, max_bytes=10 * 1024 * 1024)
+    except ValueError as exc:
+        raise ComprovanteInvalidoError("O arquivo passa de 10 MB.") from exc
     resultado = await handler.execute(
         AddProposalAttachment(
             proposal_id=proposal_id,
@@ -338,7 +361,7 @@ async def baixar_comprovante(
     return Response(
         content=conteudo.conteudo,
         media_type=conteudo.content_type,
-        headers={"Content-Disposition": f'attachment; filename="{conteudo.file_name}"'},
+        headers={"Content-Disposition": content_disposition(conteudo.file_name)},
     )
 
 

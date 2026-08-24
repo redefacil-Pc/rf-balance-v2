@@ -27,6 +27,12 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH"
 
+# Cliente usado pelo job de backup lógico. A senha é fornecida por ambiente,
+# nunca como argumento visível na lista de processos.
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends default-mysql-client \
+ && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --gid 1000 app \
  && useradd --uid 1000 --gid app --create-home app
 

@@ -70,10 +70,10 @@ pagamento. A reabertura exige `periods:reopen` e motivo descritivo, preserva o
 histórico de fechamento e recusa período com fechamento já pago — nesse caso a
 correção é por compensação no período atual.
 
-**F6 — relatórios parcial.** Dashboard, relatório financeiro geral e por
-beneficiário com export PDF e XLSX, e console de auditoria estão entregues.
-Faltam relatório por equipe e por unidade, geração de documentos em lote
-(`document_jobs`, `stored_documents`, ZIP) e o orçamento de p95 medido no CI.
+**F6 — relatórios parcial.** Dashboard, relatório financeiro geral, por
+beneficiário, equipe e unidade com export PDF/XLSX, console de auditoria e
+geração assíncrona de PDFs em lote com acompanhamento e ZIP estão entregues.
+Faltam o seed volumétrico e o orçamento de p95 medido no CI.
 
 As evidências e ressalvas de F4 a F6 estão em
 [docs/architecture/fechamento-f4-f6.md](docs/architecture/fechamento-f4-f6.md).

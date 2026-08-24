@@ -28,7 +28,7 @@ export function SettlementActionModal({ settlement, action, period, onClose }: P
   useEffect(() => {
     if (!settlement) return;
     setBonus(decimalParaMoeda(settlement.bonus_amount));
-    setDiscount(decimalParaMoeda(settlement.discount_amount));
+    setDiscount(decimalParaMoeda(settlement.manual_discount_amount));
     setDeferred(decimalParaMoeda(settlement.deferred_amount));
     setAmount(decimalParaMoeda(settlement.payable_amount));
     setNotes(settlement.notes ?? '');
@@ -51,6 +51,8 @@ export function SettlementActionModal({ settlement, action, period, onClose }: P
       {action === 'ADJUST' ? <>
         <TextInput label="Bônus / acumulado" value={bonus} onChange={(event) => setBonus(mascararMoeda(event.currentTarget.value))} />
         <TextInput label="Desconto" value={discount} onChange={(event) => setDiscount(mascararMoeda(event.currentTarget.value))} />
+        {settlement && Number(settlement.reversal_discount_amount) > 0 && <Text size="sm" c="orange">Desconto automático por estorno: {decimalParaMoeda(settlement.reversal_discount_amount)}</Text>}
+        {settlement && Number(settlement.reversal_carryover_amount) > 0 && <Text size="sm" c="orange">Saldo do estorno para as próximas semanas: {decimalParaMoeda(settlement.reversal_carryover_amount)}</Text>}
         <TextInput label="Valor adiado" value={deferred} onChange={(event) => setDeferred(mascararMoeda(event.currentTarget.value))} />
         <TextInput label="Observação" value={notes} onChange={(event) => setNotes(event.currentTarget.value)} />
       </> : <>

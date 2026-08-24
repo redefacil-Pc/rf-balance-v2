@@ -1,6 +1,6 @@
-import { Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { Button, Card, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconPlus } from '@tabler/icons-react';
+import { IconFileText, IconPlus } from '@tabler/icons-react';
 import { useCallback, useState } from 'react';
 
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -15,6 +15,7 @@ import {
   type ProposalFilters as Filtros,
 } from '@/features/proposals/queries/useProposals';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
+import { PageHeader } from '@/shared/components/PageHeader';
 import { useFiltrosNaUrl } from '@/shared/hooks/useFiltrosNaUrl';
 import type { Proposal, StatusDaProposta } from '@/shared/types/commercial';
 
@@ -32,42 +33,39 @@ function lerFiltros(params: URLSearchParams): Filtros {
 }
 
 export function ProposalsPage() {
-  const { pode } = useAuth();
+  const { pode, usuario } = useAuth();
   const [filtros, aplicarFiltros] = useFiltrosNaUrl<Filtros>(useCallback(lerFiltros, []));
   const [modalAberto, modal] = useDisclosure(false);
   const [emEdicao, setEmEdicao] = useState<Proposal | null>(null);
   const [emCancelamento, setEmCancelamento] = useState<Proposal | null>(null);
   const [emAprovacao, setEmAprovacao] = useState<Proposal | null>(null);
 
-  const consulta = useProposals(filtros);
+  const consulta = useProposals({ ...filtros, exclude_approval_status: 'SUBMITTED' });
   const propostas = (consulta.data?.pages ?? []).flatMap((pagina) => pagina.items);
   const podeEscrever = pode('proposals:write');
   const podeAprovar = pode('proposals:approve');
+  const podeDeclararPagamento =
+    pode('receipts:write') && !(usuario?.roles.includes('ADMIN') ?? false);
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-start">
-        <div>
-          <Title order={2} size="h3">
-            Propostas
-          </Title>
-          <Text c="dimmed" size="sm">
-            Modelo canônico único. A comissão da empresa é calculada e conferida no servidor.
-          </Text>
-        </div>
-
-        {podeEscrever && (
+      <PageHeader
+        eyebrow="Operação comercial"
+        icon={IconFileText}
+        title="Propostas"
+        description="Cadastre operações, acompanhe seus valores e mantenha cada etapa financeira organizada."
+        actions={podeEscrever ? (
           <Button leftSection={<IconPlus size={16} />} onClick={modal.open}>
             Nova proposta
           </Button>
-        )}
-      </Group>
+        ) : undefined}
+      />
 
-      <Card withBorder radius="md" padding="md">
+      <Card withBorder padding="md" className="rf-toolbar">
         <ProposalFilters valor={filtros} onChange={aplicarFiltros} />
       </Card>
 
-      <Card withBorder radius="md" padding={0}>
+      <Card withBorder padding={0} className="rf-data-card">
         <EstadoDaLista
           carregando={consulta.isPending}
           erro={consulta.error ?? null}
@@ -106,7 +104,11 @@ export function ProposalsPage() {
         </Text>
       )}
 
-      <ProposalFormModal aberto={modalAberto} onFechar={modal.close} />
+      <ProposalFormModal
+        aberto={modalAberto}
+        podeDeclararPagamento={podeDeclararPagamento}
+        onFechar={modal.close}
+      />
       <ProposalEditModal proposta={emEdicao} onFechar={() => setEmEdicao(null)} />
       <CancelProposalModal
         proposta={emCancelamento}

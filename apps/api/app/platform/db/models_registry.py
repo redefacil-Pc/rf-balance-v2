@@ -22,6 +22,10 @@ from app.modules.commissions.infrastructure.models.commission_models import (
     CommissionSettlementModel,
     CommissionStrategyConfigModel,
 )
+from app.modules.documents.infrastructure.models.document_models import (
+    DocumentJobModel,
+    StoredDocumentModel,
+)
 from app.modules.identity.infrastructure.models.login_attempt_model import LoginAttemptModel
 from app.modules.identity.infrastructure.models.permission_model import PermissionModel
 from app.modules.identity.infrastructure.models.role_model import RoleModel
@@ -70,6 +74,7 @@ __all__ = [
     "CommissionStrategyConfigModel",
     "CompanyModel",
     "DataIntegrityCheckModel",
+    "DocumentJobModel",
     "LegacyImportIssueModel",
     "LegacyImportRunModel",
     "LoginAttemptModel",
@@ -83,6 +88,7 @@ __all__ = [
     "RoleModel",
     "RolePermissionModel",
     "SessionModel",
+    "StoredDocumentModel",
     "TeamAssignmentModel",
     "UnitModel",
     "UserModel",

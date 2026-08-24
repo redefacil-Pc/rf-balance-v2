@@ -14,6 +14,7 @@ import { notifications } from '@mantine/notifications';
 import { IconPaperclip } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
+import { obterDataHoraEmSaoPaulo } from '@/features/proposals/components/PagamentoNoCadastro';
 import { useCreateReceipt } from '@/features/proposals/mutations/useCreateReceipt';
 import { useReceivingAccounts } from '@/features/receiving-accounts/queries/useReceivingAccounts';
 import { mascararMoeda, moedaParaDecimal } from '@/shared/formatters/money-mask';
@@ -24,18 +25,13 @@ interface Props {
   onClose: () => void;
 }
 
-const TODAY = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-const CURRENT_TIME = new Date().toLocaleTimeString('pt-BR', {
-  timeZone: 'America/Sao_Paulo',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
 export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
   const create = useCreateReceipt();
+  const [instanteInicial] = useState(obterDataHoraEmSaoPaulo);
   const [amount, setAmount] = useState('');
-  const [businessDate, setBusinessDate] = useState(TODAY);
-  const [paymentTime, setPaymentTime] = useState(CURRENT_TIME);
+  const [businessDate, setBusinessDate] = useState(instanteInicial.data);
+  const [maximumDate, setMaximumDate] = useState(instanteInicial.data);
+  const [paymentTime, setPaymentTime] = useState(instanteInicial.hora);
   const [method, setMethod] = useState<string | null>('PIX');
   // só contas ativas: desativada continua no histórico, mas não em lançamento novo
   const contas = useReceivingAccounts(true);
@@ -47,15 +43,18 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
 
   useEffect(() => {
     if (!opened) return;
+    const atual = obterDataHoraEmSaoPaulo();
     setAmount('');
-    setBusinessDate(TODAY);
-    setPaymentTime(CURRENT_TIME);
+    setBusinessDate(atual.data);
+    setMaximumDate(atual.data);
+    setPaymentTime(atual.hora);
     setMethod('PIX');
     setReceivingAccountId(null);
     setReference('');
     setNotes('');
     setProof(null);
     setIdempotencyKey(crypto.randomUUID());
+    create.reset();
   }, [opened]);
 
   // o estado guarda o valor mascarado, que é o que o operador confere; a
@@ -107,7 +106,7 @@ export function ReceiptCreateModal({ opened, proposalId, onClose }: Props) {
             label="Data do recebimento"
             withAsterisk
             type="date"
-            max={TODAY}
+            max={maximumDate}
             value={businessDate}
             onChange={(event) => setBusinessDate(event.currentTarget.value)}
           />

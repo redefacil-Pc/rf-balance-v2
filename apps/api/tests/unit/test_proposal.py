@@ -119,15 +119,15 @@ def test_nasce_em_rascunho() -> None:
     assert proposta.editavel_pelo_cadastrante
 
 
-def test_envio_sem_comprovante_e_recusado() -> None:
+def test_envio_sem_recebimento_declarado_e_recusado() -> None:
     proposta = nova()
     with pytest.raises(PropostaSemComprovanteError):
-        proposta.enviar_para_aprovacao(quantidade_de_comprovantes=0)
+        proposta.enviar_para_aprovacao(quantidade_de_recebimentos=0)
 
 
-def test_envio_com_comprovante_trava_edicao() -> None:
+def test_envio_com_recebimento_declarado_trava_edicao() -> None:
     proposta = nova()
-    proposta.enviar_para_aprovacao(quantidade_de_comprovantes=1)
+    proposta.enviar_para_aprovacao(quantidade_de_recebimentos=1)
     assert proposta.approval_status is SituacaoDeAprovacao.SUBMITTED
     assert not proposta.editavel_pelo_cadastrante
 
@@ -137,17 +137,17 @@ def test_envio_com_comprovante_trava_edicao() -> None:
 
 def test_aprovacao_e_terminal() -> None:
     proposta = nova()
-    proposta.enviar_para_aprovacao(quantidade_de_comprovantes=1)
+    proposta.enviar_para_aprovacao(quantidade_de_recebimentos=1)
     proposta.aprovar()
     assert proposta.approval_status is SituacaoDeAprovacao.APPROVED
 
     with pytest.raises(TransicaoDeAprovacaoInvalidaError):
-        proposta.enviar_para_aprovacao(quantidade_de_comprovantes=1)
+        proposta.enviar_para_aprovacao(quantidade_de_recebimentos=1)
 
 
 def test_rejeicao_exige_motivo_e_libera_reenvio() -> None:
     proposta = nova()
-    proposta.enviar_para_aprovacao(quantidade_de_comprovantes=1)
+    proposta.enviar_para_aprovacao(quantidade_de_recebimentos=1)
 
     with pytest.raises(MotivoDeDevolucaoObrigatorioError):
         proposta.rejeitar("  ")
@@ -157,7 +157,7 @@ def test_rejeicao_exige_motivo_e_libera_reenvio() -> None:
     assert proposta.rejection_reason == "Comprovante ilegível"
     assert proposta.editavel_pelo_cadastrante
 
-    proposta.enviar_para_aprovacao(quantidade_de_comprovantes=1)
+    proposta.enviar_para_aprovacao(quantidade_de_recebimentos=1)
     assert proposta.approval_status is SituacaoDeAprovacao.SUBMITTED
     # o motivo da devolução anterior não sobrevive ao reenvio
     assert proposta.rejection_reason is None

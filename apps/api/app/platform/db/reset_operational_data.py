@@ -34,6 +34,8 @@ from app.platform.config.settings import get_settings
 #: das folhas para as raízes — a ordem só importa se as FKs forem respeitadas,
 #: e aqui elas são desligadas; manter a ordem legível ajuda a revisar a lista
 TABELAS_OPERACIONAIS = (
+    "stored_documents",
+    "document_jobs",
     "data_integrity_checks",
     "commission_settlements",
     "commission_manual_entries",

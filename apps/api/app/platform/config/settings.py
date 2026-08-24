@@ -7,6 +7,7 @@ from app.platform.config.app import AppSettings
 from app.platform.config.database import DatabaseSettings
 from app.platform.config.pii import PiiSettings
 from app.platform.config.redis import RedisSettings
+from app.platform.config.retention import RetentionSettings
 from app.platform.config.security import SecuritySettings
 from app.platform.config.storage import StorageSettings
 
@@ -19,6 +20,7 @@ class Settings:
     storage: StorageSettings
     security: SecuritySettings
     pii: PiiSettings
+    retention: RetentionSettings
 
     def validar(self) -> None:
         """Levanta erro antes de a aplicação aceitar tráfego."""
@@ -37,4 +39,5 @@ def get_settings() -> Settings:
         storage=StorageSettings(),
         security=SecuritySettings(),
         pii=PiiSettings(),
+        retention=RetentionSettings(),
     )

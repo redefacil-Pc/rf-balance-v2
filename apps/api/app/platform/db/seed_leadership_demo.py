@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from dataclasses import dataclass
-from datetime import date
+from datetime import timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -43,9 +43,6 @@ from app.platform.db.session.unit_of_work import UnitOfWork
 from app.platform.time.clock import SystemClock
 
 PREFIX = "TESTE-COMISSAO-20260817"
-PERIOD_START = date(2026, 8, 14)
-PERIOD_END = date(2026, 8, 20)
-ASSIGNMENT_START = date(2026, 8, 17)
 LEADER_STRATEGIES = ("COMMERCIAL_LEADER", "GENERAL_MEI_LEADER", "FINALIZATION_LEADER")
 
 
@@ -66,6 +63,9 @@ class LeadershipDemo:
         self.engine = criar_engine(self.settings.database)
         self.factory = criar_fabrica_de_sessoes(self.engine)
         self.clock = SystemClock(self.settings.app.app_timezone)
+        self.period_end = self.clock.business_date()
+        self.period_start = self.period_end - timedelta(days=6)
+        self.assignment_start = self.period_end
 
     async def close(self) -> None:
         await self.engine.dispose()
@@ -111,8 +111,9 @@ class LeadershipDemo:
                     TeamAssignmentModel.consultant_id == member,
                     TeamAssignmentModel.leader_id == leader,
                     TeamAssignmentModel.assignment_type == assignment_type,
-                    TeamAssignmentModel.start_date <= ASSIGNMENT_START,
-                    func.coalesce(TeamAssignmentModel.end_date, PERIOD_END) >= ASSIGNMENT_START,
+                    TeamAssignmentModel.start_date <= self.assignment_start,
+                    func.coalesce(TeamAssignmentModel.end_date, self.period_end)
+                    >= self.assignment_start,
                 )
             )
         if existing is not None:
@@ -129,7 +130,7 @@ class LeadershipDemo:
                     consultant_id=member,
                     leader_id=leader,
                     assignment_type=assignment_type,
-                    start_date=ASSIGNMENT_START,
+                    start_date=self.assignment_start,
                     motivo="Equipe isolada para homologar comissões de liderança",
                     ator=actor,
                     correlation_id="seed:leadership-demo",
@@ -165,8 +166,8 @@ class LeadershipDemo:
                 outbox=SqlOutboxRecorder(uow.session, self.clock),
                 clock=self.clock,
             ).generate(
-                period_start=PERIOD_START,
-                period_end=PERIOD_END,
+                period_start=self.period_start,
+                period_end=self.period_end,
                 actor=actor,
                 correlation_id="seed:leadership-demo",
             )
@@ -191,8 +192,8 @@ class LeadershipDemo:
                     )
                     .where(
                         CommissionCalculationSnapshotModel.strategy.in_(LEADER_STRATEGIES),
-                        CommissionEntryModel.competence_date >= PERIOD_START,
-                        CommissionEntryModel.competence_date <= PERIOD_END,
+                        CommissionEntryModel.competence_date >= self.period_start,
+                        CommissionEntryModel.competence_date <= self.period_end,
                     )
                     .group_by(
                         CommissionCalculationSnapshotModel.strategy,
@@ -210,8 +211,8 @@ class LeadershipDemo:
                     await session.scalars(
                         select(CommissionSettlementModel).where(
                             CommissionSettlementModel.beneficiary_id.in_(leaders),
-                            CommissionSettlementModel.period_start == PERIOD_START,
-                            CommissionSettlementModel.period_end == PERIOD_END,
+                            CommissionSettlementModel.period_start == self.period_start,
+                            CommissionSettlementModel.period_end == self.period_end,
                         )
                     )
                 ).all()

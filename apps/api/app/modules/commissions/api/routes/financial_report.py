@@ -27,10 +27,17 @@ router = APIRouter(prefix="/api/v1", tags=["commission-reports"])
 
 
 async def _report_data(
-    uow: Uow, period_start: date, period_end: date
+    uow: Uow,
+    period_start: date,
+    period_end: date,
+    unit_id: int | None = None,
+    leader_id: int | None = None,
 ) -> tuple[FinancialReportSummary, list[FinancialReportBeneficiary]]:
     return await FinancialCommissionReportQuery(uow.session).summary(
-        period_start=period_start, period_end=period_end
+        period_start=period_start,
+        period_end=period_end,
+        unit_id=unit_id,
+        leader_id=leader_id,
     )
 
 
@@ -41,8 +48,12 @@ async def export_financial_report_xlsx(
     uow: Uow,
     _exporter: Annotated[User, Depends(require_permission("reports:export"))],
     _financial_reader: Annotated[User, Depends(require_permission("settlements:read"))],
+    unit_id: Annotated[int | None, Query(gt=0)] = None,
+    leader_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> Response:
-    summary, beneficiaries = await _report_data(uow, period_start, period_end)
+    summary, beneficiaries = await _report_data(
+        uow, period_start, period_end, unit_id, leader_id
+    )
     return Response(
         financial_report_xlsx(summary, beneficiaries),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -57,8 +68,12 @@ async def export_financial_report_pdf(
     uow: Uow,
     _exporter: Annotated[User, Depends(require_permission("reports:export"))],
     _financial_reader: Annotated[User, Depends(require_permission("settlements:read"))],
+    unit_id: Annotated[int | None, Query(gt=0)] = None,
+    leader_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> Response:
-    summary, beneficiaries = await _report_data(uow, period_start, period_end)
+    summary, beneficiaries = await _report_data(
+        uow, period_start, period_end, unit_id, leader_id
+    )
     return Response(
         financial_report_pdf(summary, beneficiaries),
         media_type="application/pdf",
@@ -72,9 +87,14 @@ async def financial_report(
     period_end: Annotated[date, Query()],
     uow: Uow,
     _actor: Annotated[User, Depends(require_permission("settlements:read"))],
+    unit_id: Annotated[int | None, Query(gt=0)] = None,
+    leader_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> FinancialReportResponse:
     summary, beneficiaries = await FinancialCommissionReportQuery(uow.session).summary(
-        period_start=period_start, period_end=period_end
+        period_start=period_start,
+        period_end=period_end,
+        unit_id=unit_id,
+        leader_id=leader_id,
     )
     return FinancialReportResponse(
         period_start=period_start,
@@ -113,11 +133,15 @@ async def financial_report_details(
     period_end: Annotated[date, Query()],
     uow: Uow,
     _actor: Annotated[User, Depends(require_permission("settlements:read"))],
+    unit_id: Annotated[int | None, Query(gt=0)] = None,
+    leader_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> FinancialReportDetailPageResponse:
     summary, items = await FinancialCommissionReportQuery(uow.session).details(
         beneficiary_id=beneficiary_id,
         period_start=period_start,
         period_end=period_end,
+        unit_id=unit_id,
+        leader_id=leader_id,
     )
     return FinancialReportDetailPageResponse(
         summary=FinancialReportDetailSummaryResponse(

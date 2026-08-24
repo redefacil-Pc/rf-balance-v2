@@ -36,3 +36,11 @@ export function useReopenCommissionPeriod() {
     onSuccess: () => void client.invalidateQueries({ queryKey: key }),
   });
 }
+
+export function useApproveCommissionPeriodReopening() {
+  const client = useQueryClient();
+  return useMutation<CommissionPeriod, ApiError, { id: number }>({
+    mutationFn: ({ id }) => requisitar(`/commission-periods/${id}/reopening-approval`, { method: 'POST' }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: key }),
+  });
+}

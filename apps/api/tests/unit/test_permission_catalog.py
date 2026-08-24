@@ -46,10 +46,22 @@ def test_operacional_cadastra_mas_nao_aprova() -> None:
     assert "proposals:approve" not in operacional
 
 
+def test_escrita_de_recebimento_nao_vem_do_papel_operacional() -> None:
+    """A função FINALIZACAO concede esta capacidade no contexto do usuário."""
+    assert "receipts:read" in PAPEIS["OPERACIONAL"]
+    assert "receipts:write" not in PAPEIS["OPERACIONAL"]
+
+
 def test_financeiro_aprova_mas_nao_cadastra() -> None:
     financeiro = set(PAPEIS["FINANCEIRO"])
     assert "proposals:approve" in financeiro
     assert "proposals:write" not in financeiro
+
+
+def test_relatorio_financeiro_so_existe_para_quem_le_fechamentos() -> None:
+    for papel, permissoes in PAPEIS.items():
+        if "reports:read" in permissoes:
+            assert "settlements:read" in permissoes, papel
 
 
 def test_papeis_de_acesso_nao_replicam_funcoes_operacionais() -> None:

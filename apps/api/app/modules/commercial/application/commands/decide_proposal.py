@@ -16,7 +16,10 @@ from enum import StrEnum
 
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
 from app.modules.commercial.application.ports.receipt_recognizer import ReceiptRecognizer
-from app.modules.commercial.domain.errors import PropostaNaoEncontradaError
+from app.modules.commercial.domain.errors import (
+    AutoAprovacaoDePropostaError,
+    PropostaNaoEncontradaError,
+)
 from app.modules.commercial.infrastructure.repositories.sql_proposal_repository import (
     SqlProposalRepository,
 )
@@ -80,6 +83,10 @@ class DecideProposalHandler:
             raise PropostaNaoEncontradaError(f"Proposta {cmd.proposal_id} não encontrada.")
 
         if cmd.decisao is Decisao.APROVAR:
+            if cmd.ator is not None and await self._recebimentos.foi_declarado_por(
+                cmd.proposal_id, cmd.ator
+            ):
+                raise AutoAprovacaoDePropostaError()
             proposta.aprovar()
             acao = "proposal.approved"
             # aprovar é conferir no extrato o que a Finalização declarou: o

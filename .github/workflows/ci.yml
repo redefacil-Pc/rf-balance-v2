@@ -78,6 +78,51 @@ jobs:
       - name: pytest integração
         run: pytest tests/integration
 
+  backend-performance:
+    name: backend — orçamento p95 no volume de três anos
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      db:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          MYSQL_DATABASE: rfbalance_test
+          MYSQL_USER: rfbalance
+          MYSQL_PASSWORD: rfbalance
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=5s --health-timeout=3s --health-retries=20
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd="redis-cli ping" --health-interval=5s --health-retries=10
+    env:
+      APP_ENV: test
+      DATABASE_URL: mysql+asyncmy://rfbalance:rfbalance@127.0.0.1:3306/rfbalance_test
+      MIGRATION_DATABASE_URL: mysql+asyncmy://root:ci@127.0.0.1:3306/rfbalance_test
+      REDIS_URL: redis://127.0.0.1:6379/8
+      SECRET_KEY: performance-secret-key-com-mais-de-32-caracteres
+      SEED_ADMIN_PASSWORD: performance-ci-password-2026
+      PERFORMANCE_DASHBOARD_P95_SECONDS: "2.0"
+      PERFORMANCE_REPORT_P95_SECONDS: "5.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: alembic upgrade head
+      - name: massa sintética — três anos e 20 mil propostas
+        run: python -m app.platform.db.seed_volumetric --proposals 20000 --reset
+      - name: orçamento de dashboard e relatório
+        run: pytest tests/performance -s
+
   contract:
     name: contrato — OpenAPI
     runs-on: ubuntu-latest

@@ -32,6 +32,7 @@ describe('FinancialReportPage', () => {
 
   it('mostra consolidado e abre a origem do valor do beneficiário', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+      if (String(url).includes('/document-jobs')) return Promise.resolve(json({ items: [] }));
       if (String(url).includes('/beneficiaries/10')) {
         return Promise.resolve(json({
           summary: {
@@ -71,5 +72,64 @@ describe('FinancialReportPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Detalhar' }));
     expect(await screen.findByText('Comissão BKO')).toBeInTheDocument();
     expect(screen.getAllByText('Manual')).toHaveLength(2);
+  });
+
+  it('aplica o recorte de unidade também na consulta do relatório', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+      const value = String(url);
+      if (value.includes('/document-jobs')) return Promise.resolve(json({ items: [] }));
+      if (value.includes('/units?')) {
+        return Promise.resolve(json([{
+          id: 7, company_id: 1, code: 'SP', name: 'São Paulo', is_active: true,
+        }]));
+      }
+      if (value.includes('/assignments/active?')) return Promise.resolve(json([]));
+      return Promise.resolve(json({
+        period_start: '2026-08-14', period_end: '2026-08-20', summary,
+        beneficiaries: [],
+      }));
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<MantineProvider><QueryClientProvider client={client}>
+      <FinancialReportPage />
+    </QueryClientProvider></MantineProvider>);
+
+    await userEvent.click(screen.getByText('Por unidade'));
+    await userEvent.click(await screen.findByRole('textbox', { name: 'Unidade' }));
+    await userEvent.click(await screen.findByText('SP · São Paulo'));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('unit_id=7'),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it('mostra o progresso concluído e disponibiliza o ZIP do lote', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+      const value = String(url);
+      if (value.includes('/document-jobs')) return Promise.resolve(json({ items: [{
+        id: 44, job_type: 'COMMISSION_REPORT_BATCH', status: 'COMPLETED',
+        period_start: '2026-08-14', period_end: '2026-08-20', unit_id: null, leader_id: null,
+        total_items: 5, processed_items: 5, attempt_count: 1, max_attempts: 3,
+        error_message: null, archive_ready: true, created_at: '2026-08-20T12:00:00Z',
+        started_at: '2026-08-20T12:00:01Z', completed_at: '2026-08-20T12:00:03Z',
+      }] }));
+      if (value.includes('/units?') || value.includes('/assignments/active?')) {
+        return Promise.resolve(json([]));
+      }
+      return Promise.resolve(json({
+        period_start: '2026-08-14', period_end: '2026-08-20', summary,
+        beneficiaries: [],
+      }));
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<MantineProvider><QueryClientProvider client={client}>
+      <FinancialReportPage />
+    </QueryClientProvider></MantineProvider>);
+
+    expect(await screen.findByText('Lote #44')).toBeInTheDocument();
+    const download = screen.getByRole('link', { name: 'Baixar ZIP' });
+    expect(download).toHaveAttribute('href', '/api/v1/document-jobs/44/download');
+    expect(screen.getByText('5 de 5 PDFs gerados')).toBeInTheDocument();
   });
 });

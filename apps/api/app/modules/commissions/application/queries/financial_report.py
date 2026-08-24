@@ -5,9 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.modules.commercial.infrastructure.models.proposal_model import ProposalModel
 from app.modules.commissions.domain.errors import CommissionRuleConfigurationError
@@ -22,6 +24,7 @@ from app.modules.receivables.infrastructure.models.receipt_model import (
     ReceiptModel,
     ReceiptReversalModel,
 )
+from app.modules.teams.infrastructure.models.team_assignment_model import TeamAssignmentModel
 
 ZERO = Decimal("0.00")
 CENT = Decimal("0.01")
@@ -105,15 +108,32 @@ class FinancialCommissionReportQuery:
         self._session = session
 
     async def summary(
-        self, *, period_start: date, period_end: date
+        self,
+        *,
+        period_start: date,
+        period_end: date,
+        unit_id: int | None = None,
+        leader_id: int | None = None,
     ) -> tuple[FinancialReportSummary, list[FinancialReportBeneficiary]]:
         self._validate_period(period_start, period_end)
+        self._validate_scope(unit_id, leader_id)
+        consultant_ids, beneficiary_ids = await self._scope_ids(
+            period_start=period_start,
+            period_end=period_end,
+            unit_id=unit_id,
+            leader_id=leader_id,
+        )
         gross_revenue = Decimal(
             await self._session.scalar(
-                select(func.coalesce(func.sum(ReceiptModel.amount), 0)).where(
+                select(func.coalesce(func.sum(ReceiptModel.amount), 0))
+                .join(ProposalModel, ProposalModel.id == ReceiptModel.proposal_id)
+                .where(
                     ReceiptModel.status == "APPROVED",
                     ReceiptModel.business_date >= period_start,
                     ReceiptModel.business_date <= period_end,
+                    self._consultant_scope(
+                        consultant_ids, leader_id, ReceiptModel.business_date
+                    ),
                 )
             )
             or 0
@@ -122,10 +142,14 @@ class FinancialCommissionReportQuery:
             await self._session.scalar(
                 select(func.coalesce(func.sum(ReceiptReversalModel.amount), 0))
                 .join(ReceiptModel, ReceiptModel.id == ReceiptReversalModel.receipt_id)
+                .join(ProposalModel, ProposalModel.id == ReceiptModel.proposal_id)
                 .where(
                     ReceiptModel.status == "APPROVED",
                     ReceiptReversalModel.business_date >= period_start,
                     ReceiptReversalModel.business_date <= period_end,
+                    self._consultant_scope(
+                        consultant_ids, leader_id, ReceiptReversalModel.business_date
+                    ),
                 )
             )
             or 0
@@ -146,9 +170,13 @@ class FinancialCommissionReportQuery:
                     CollaboratorModel,
                     CollaboratorModel.id == CommissionEntryModel.beneficiary_id,
                 )
+                .join(ProposalModel, ProposalModel.id == CommissionEntryModel.proposal_id)
                 .where(
                     CommissionEntryModel.competence_date >= period_start,
                     CommissionEntryModel.competence_date <= period_end,
+                    self._consultant_scope(
+                        consultant_ids, leader_id, CommissionEntryModel.competence_date
+                    ),
                 )
                 .group_by(
                     CommissionEntryModel.beneficiary_id,
@@ -172,6 +200,12 @@ class FinancialCommissionReportQuery:
                 .where(
                     CommissionManualEntryModel.effective_date >= period_start,
                     CommissionManualEntryModel.effective_date <= period_end,
+                    self._beneficiary_scope(
+                        beneficiary_ids,
+                        leader_id,
+                        CommissionManualEntryModel.beneficiary_id,
+                        CommissionManualEntryModel.effective_date,
+                    ),
                 )
                 .group_by(
                     CommissionManualEntryModel.beneficiary_id,
@@ -186,6 +220,11 @@ class FinancialCommissionReportQuery:
                     select(CommissionSettlementModel).where(
                         CommissionSettlementModel.period_start == period_start,
                         CommissionSettlementModel.period_end == period_end,
+                        (
+                            true()
+                            if beneficiary_ids is None
+                            else CommissionSettlementModel.beneficiary_id.in_(beneficiary_ids)
+                        ),
                     )
                 )
             ).all()
@@ -225,7 +264,9 @@ class FinancialCommissionReportQuery:
                 beneficiaries.setdefault(
                     int(beneficiary_id), _BeneficiaryAccumulator(str(name), set())
                 )
-        recognized_production = await self._recognized_production(period_start, period_end)
+        recognized_production = await self._recognized_production(
+            period_start, period_end, consultant_ids, leader_id
+        )
         consultant = sum(
             (automatic_by_strategy.get(item, ZERO) for item in CONSULTANT_STRATEGIES), ZERO
         )
@@ -269,9 +310,22 @@ class FinancialCommissionReportQuery:
         )
 
     async def details(
-        self, *, beneficiary_id: int, period_start: date, period_end: date
+        self,
+        *,
+        beneficiary_id: int,
+        period_start: date,
+        period_end: date,
+        unit_id: int | None = None,
+        leader_id: int | None = None,
     ) -> tuple[FinancialReportDetailSummary, list[FinancialReportDetail]]:
         self._validate_period(period_start, period_end)
+        self._validate_scope(unit_id, leader_id)
+        consultant_ids, beneficiary_ids = await self._scope_ids(
+            period_start=period_start,
+            period_end=period_end,
+            unit_id=unit_id,
+            leader_id=leader_id,
+        )
         automatic = (
             await self._session.execute(
                 select(
@@ -289,6 +343,11 @@ class FinancialCommissionReportQuery:
                     CommissionEntryModel.beneficiary_id == beneficiary_id,
                     CommissionEntryModel.competence_date >= period_start,
                     CommissionEntryModel.competence_date <= period_end,
+                    self._consultant_scope(
+                        consultant_ids,
+                        leader_id,
+                        CommissionEntryModel.competence_date,
+                    ),
                 )
                 .order_by(CommissionEntryModel.competence_date, CommissionEntryModel.id)
             )
@@ -320,6 +379,12 @@ class FinancialCommissionReportQuery:
                         CommissionManualEntryModel.beneficiary_id == beneficiary_id,
                         CommissionManualEntryModel.effective_date >= period_start,
                         CommissionManualEntryModel.effective_date <= period_end,
+                        self._beneficiary_scope(
+                            beneficiary_ids,
+                            leader_id,
+                            CommissionManualEntryModel.beneficiary_id,
+                            CommissionManualEntryModel.effective_date,
+                        ),
                     )
                     .order_by(
                         CommissionManualEntryModel.effective_date,
@@ -393,6 +458,11 @@ class FinancialCommissionReportQuery:
                 CommissionSettlementModel.beneficiary_id == beneficiary_id,
                 CommissionSettlementModel.period_start == period_start,
                 CommissionSettlementModel.period_end == period_end,
+                (
+                    true()
+                    if beneficiary_ids is None
+                    else CommissionSettlementModel.beneficiary_id.in_(beneficiary_ids)
+                ),
             )
         )
         ordered = sorted(
@@ -408,14 +478,30 @@ class FinancialCommissionReportQuery:
             ordered,
         )
 
-    async def _recognized_production(self, period_start: date, period_end: date) -> Decimal:
+    async def _recognized_production(
+        self,
+        period_start: date,
+        period_end: date,
+        consultant_ids: set[int] | None = None,
+        leader_id: int | None = None,
+    ) -> Decimal:
         snapshots = list(
             (
                 await self._session.scalars(
-                    select(CommissionCalculationSnapshotModel).where(
+                    select(CommissionCalculationSnapshotModel)
+                    .join(
+                        ProposalModel,
+                        ProposalModel.id == CommissionCalculationSnapshotModel.proposal_id,
+                    )
+                    .where(
                         CommissionCalculationSnapshotModel.strategy.in_(CONSULTANT_STRATEGIES),
                         CommissionCalculationSnapshotModel.competence_date >= period_start,
                         CommissionCalculationSnapshotModel.competence_date <= period_end,
+                        self._consultant_scope(
+                            consultant_ids,
+                            leader_id,
+                            CommissionCalculationSnapshotModel.competence_date,
+                        ),
                     )
                 )
             ).all()
@@ -450,8 +536,94 @@ class FinancialCommissionReportQuery:
         )
 
     @staticmethod
+    def _consultant_scope(
+        consultant_ids: set[int] | None,
+        leader_id: int | None,
+        reference_date: Any,
+    ) -> ColumnElement[bool]:
+        if leader_id is None:
+            return (
+                true()
+                if consultant_ids is None
+                else ProposalModel.consultant_id.in_(consultant_ids)
+            )
+        return exists(
+            select(TeamAssignmentModel.id).where(
+                TeamAssignmentModel.leader_id == leader_id,
+                TeamAssignmentModel.consultant_id == ProposalModel.consultant_id,
+                TeamAssignmentModel.start_date <= reference_date,
+                or_(
+                    TeamAssignmentModel.end_date.is_(None),
+                    TeamAssignmentModel.end_date >= reference_date,
+                ),
+            )
+        )
+
+    @staticmethod
+    def _beneficiary_scope(
+        beneficiary_ids: set[int] | None,
+        leader_id: int | None,
+        beneficiary_column: Any,
+        reference_date: Any,
+    ) -> ColumnElement[bool]:
+        if leader_id is None:
+            return true() if beneficiary_ids is None else beneficiary_column.in_(beneficiary_ids)
+        return or_(
+            beneficiary_column == leader_id,
+            exists(
+                select(TeamAssignmentModel.id).where(
+                    TeamAssignmentModel.leader_id == leader_id,
+                    TeamAssignmentModel.consultant_id == beneficiary_column,
+                    TeamAssignmentModel.start_date <= reference_date,
+                    or_(
+                        TeamAssignmentModel.end_date.is_(None),
+                        TeamAssignmentModel.end_date >= reference_date,
+                    ),
+                )
+            ),
+        )
+
+    @staticmethod
     def _validate_period(period_start: date, period_end: date) -> None:
         if period_end < period_start:
             raise CommissionRuleConfigurationError("O fim do período deve ser posterior ao início.")
         if (period_end - period_start).days > 92:
             raise CommissionRuleConfigurationError("O período não pode ultrapassar 93 dias.")
+
+    @staticmethod
+    def _validate_scope(unit_id: int | None, leader_id: int | None) -> None:
+        if unit_id is not None and leader_id is not None:
+            raise CommissionRuleConfigurationError(
+                "Selecione apenas um recorte: unidade ou equipe."
+            )
+
+    async def _scope_ids(
+        self,
+        *,
+        period_start: date,
+        period_end: date,
+        unit_id: int | None,
+        leader_id: int | None,
+    ) -> tuple[set[int] | None, set[int] | None]:
+        if unit_id is not None:
+            ids = set(
+                await self._session.scalars(
+                    select(CollaboratorModel.id).where(CollaboratorModel.unit_id == unit_id)
+                )
+            )
+            return ids, ids
+        if leader_id is not None:
+            member_ids = set(
+                await self._session.scalars(
+                    select(TeamAssignmentModel.consultant_id).where(
+                        TeamAssignmentModel.leader_id == leader_id,
+                        TeamAssignmentModel.start_date <= period_end,
+                        or_(
+                            TeamAssignmentModel.end_date.is_(None),
+                            TeamAssignmentModel.end_date >= period_start,
+                        ),
+                    )
+                )
+            )
+            return member_ids, member_ids | {leader_id}
+        return None, None

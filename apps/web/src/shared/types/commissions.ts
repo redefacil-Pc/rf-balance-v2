@@ -122,6 +122,9 @@ export interface CommissionSettlement {
   carryover_amount: string;
   bonus_amount: string;
   discount_amount: string;
+  manual_discount_amount: string;
+  reversal_discount_amount: string;
+  reversal_carryover_amount: string;
   deferred_amount: string;
   paid_amount: string;
   payable_amount: string;
@@ -142,7 +145,7 @@ export interface CommissionPeriod {
   period_start: string;
   period_end: string;
   cutoff_at: string;
-  status: 'OPEN' | 'CLOSED';
+  status: 'OPEN' | 'CLOSED' | 'REOPENING_PENDING';
   reason: string;
   created_at: string;
   created_by: number;
@@ -150,6 +153,8 @@ export interface CommissionPeriod {
   closed_by: number | null;
   reopened_at: string | null;
   reopened_by: number | null;
+  reopen_requested_at: string | null;
+  reopen_requested_by: number | null;
   reopen_reason: string | null;
 }
 

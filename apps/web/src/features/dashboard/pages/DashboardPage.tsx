@@ -32,6 +32,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { useDashboard, type DashboardPeriod } from '@/features/dashboard/queries/useDashboard';
 import type { DashboardSummary } from '@/features/dashboard/types';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
+import { PageHeader } from '@/shared/components/PageHeader';
 import { formatarMoeda } from '@/shared/formatters/currency';
 import { dataLocalHoje } from '@/shared/formatters/local-date';
 
@@ -75,7 +76,7 @@ function MetricCard({
   color: string;
 }) {
   return (
-    <Card withBorder padding="lg" h="100%">
+    <Card withBorder padding="lg" h="100%" className="rf-metric-card">
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <div>
           <Text size="xs" c="dimmed" fw={700} tt="uppercase">{label}</Text>
@@ -101,7 +102,7 @@ function ProposalStatus({ summary }: { summary: DashboardSummary }) {
     { label: 'Canceladas', value: summary.cancelled_count, color: 'red' },
   ];
   return (
-    <Card withBorder padding="lg" h="100%">
+    <Card withBorder padding="lg" h="100%" className="rf-section-card">
       <Group justify="space-between" mb="md">
         <div>
           <Title order={3} size="h5">Situação das propostas</Title>
@@ -155,23 +156,25 @@ export function DashboardPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-end">
-        <div>
-          <Title order={2} size="h3">Olá, {usuario?.full_name.split(' ')[0]}</Title>
-          <Text c="dimmed" size="sm">Visão consolidada da operação dentro do seu acesso.</Text>
-        </div>
-        <SegmentedControl
-          value={preset}
-          onChange={changePreset}
-          data={[
-            { value: 'WEEK', label: 'Semana' },
-            { value: 'MONTH', label: 'Mês' },
-            { value: 'CUSTOM', label: 'Personalizado' },
-          ]}
-        />
-      </Group>
+      <PageHeader
+        eyebrow="Visão geral"
+        icon={IconChartBar}
+        title={<>Olá, {usuario?.full_name.split(' ')[0]}</>}
+        description="Acompanhe produção, recebimentos e comissões em uma visão consolidada da sua operação."
+        actions={
+          <SegmentedControl
+            value={preset}
+            onChange={changePreset}
+            data={[
+              { value: 'WEEK', label: 'Semana' },
+              { value: 'MONTH', label: 'Mês' },
+              { value: 'CUSTOM', label: 'Personalizado' },
+            ]}
+          />
+        }
+      />
 
-      <Card withBorder padding="md">
+      <Card withBorder padding="md" className="rf-toolbar">
         <Group align="end">
           <TextInput
             type="date"
@@ -228,7 +231,7 @@ export function DashboardPage() {
             </SimpleGrid>
 
             <SimpleGrid cols={{ base: 1, lg: 2 }}>
-              <Card withBorder padding="lg">
+              <Card withBorder padding="lg" className="rf-section-card">
                 <Group justify="space-between" mb="md">
                   <div><Title order={3} size="h5">Evolução diária</Title>
                     <Text size="xs" c="dimmed">Produção aprovada e faturamento reconhecido</Text></div>
@@ -254,7 +257,7 @@ export function DashboardPage() {
                 )}
               </Card>
 
-              <Card withBorder padding={0}>
+              <Card withBorder padding={0} className="rf-section-card">
                 <Group justify="space-between" px="lg" py="md">
                   <div><Title order={3} size="h5">Ranking de produção</Title>
                     <Text size="xs" c="dimmed">Cinco consultores com maior produção aprovada</Text></div>
@@ -283,7 +286,7 @@ export function DashboardPage() {
         )}
       </EstadoDaLista>
 
-      <Card withBorder padding="lg">
+      <Card withBorder padding="lg" className="rf-section-card">
         <Group justify="space-between" mb="md">
           <div><Title order={3} size="h5">Acessos rápidos</Title>
             <Text size="xs" c="dimmed">Continue o trabalho nas áreas liberadas para seu perfil.</Text></div>

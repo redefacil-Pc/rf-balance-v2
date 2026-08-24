@@ -60,7 +60,7 @@ function SettlementSector({ title, description, items, canWrite, onAction }: {
       : <Table.ScrollContainer minWidth={1150}><Table striped verticalSpacing="sm">
         <Table.Thead><Table.Tr><Table.Th>Beneficiário</Table.Th><Table.Th>Função</Table.Th>
           <Table.Th ta="right">Bruto</Table.Th><Table.Th ta="right">Acumulado anterior</Table.Th>
-          <Table.Th ta="right">Bônus</Table.Th><Table.Th ta="right">Desconto</Table.Th>
+          <Table.Th ta="right">Bônus</Table.Th><Table.Th ta="right">Desconto</Table.Th><Table.Th ta="right">Estorno futuro</Table.Th>
           <Table.Th ta="right">Adiado</Table.Th><Table.Th ta="right">Pago</Table.Th>
           <Table.Th ta="right">A pagar</Table.Th><Table.Th>Status</Table.Th><Table.Th>Ações</Table.Th>
         </Table.Tr></Table.Thead><Table.Tbody>{items.map((item) => <Table.Tr key={item.id}>
@@ -68,7 +68,7 @@ function SettlementSector({ title, description, items, canWrite, onAction }: {
           <Table.Td>{item.roles.map((role) => <Badge key={role} variant="light" mr={4}>
             {roleLabels[role] ?? role}
           </Badge>)}</Table.Td>
-          {[item.gross_amount, item.carryover_amount, item.bonus_amount, item.discount_amount,
+          {[item.gross_amount, item.carryover_amount, item.bonus_amount, item.discount_amount, item.reversal_carryover_amount,
             item.deferred_amount, item.paid_amount, item.payable_amount]
             .map((value, index) => <Table.Td key={index} ta="right">{formatarMoeda(value)}</Table.Td>)}
           <Table.Td><Badge variant="light">{labels[item.status]}</Badge></Table.Td>

@@ -7,6 +7,10 @@ import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
 import { formatarMoeda } from '@/shared/formatters/currency';
 import { ReceiptActionModal } from '../components/ReceiptActionModal';
 import { CommissionExplanationModal } from '../components/CommissionExplanationModal';
+import {
+  ReceiptProofPreviewButton,
+  ReceiptProofPreviewModal,
+} from '../components/ReceiptProofPreviewModal';
 import { useReceipts } from '../queries/useReceipts';
 import type { Receipt, ReceiptStatus } from '@/shared/types/receipts';
 
@@ -24,6 +28,7 @@ export function ReceiptsPage() {
   const [selected, setSelected] = useState<Receipt | null>(null);
   const [action, setAction] = useState<'DECIDE' | 'REVERSE'>('DECIDE');
   const [explainedReceiptId, setExplainedReceiptId] = useState<number | null>(null);
+  const [previewedReceipt, setPreviewedReceipt] = useState<Receipt | null>(null);
   const roles = new Set(usuario?.roles ?? []);
   const isFinance = roles.has('FINANCEIRO');
   const openAction = (receipt: Receipt, next: 'DECIDE' | 'REVERSE') => {
@@ -61,9 +66,12 @@ export function ReceiptsPage() {
               {receipt.reversed ? 'Estornado' : labels[receipt.status]}</Badge>
               {(receipt.rejection_reason || receipt.reversal_reason) && <Text size="xs" c="dimmed" maw={220}>
                 {receipt.rejection_reason ?? receipt.reversal_reason}</Text>}</Table.Td>
-            <Table.Td><Tooltip label={receipt.proof_file_name}><ActionIcon component="a"
-              href={`/api/v1/receipts/${receipt.id}/proof`} aria-label="Baixar comprovante" variant="subtle">
-              <IconDownload size={16} /></ActionIcon></Tooltip></Table.Td>
+            <Table.Td><Group gap={4} wrap="nowrap">
+              <ReceiptProofPreviewButton onClick={() => setPreviewedReceipt(receipt)} />
+              <Tooltip label={`Baixar ${receipt.proof_file_name}`}><ActionIcon component="a"
+                href={`/api/v1/receipts/${receipt.id}/proof`} aria-label="Baixar comprovante" variant="subtle">
+                <IconDownload size={16} /></ActionIcon></Tooltip>
+            </Group></Table.Td>
             <Table.Td><Group gap={4} wrap="nowrap">
               {receipt.status === 'APPROVED' && pode('settlements:read') &&
                 <Tooltip label="Ver cálculo"><ActionIcon variant="subtle"
@@ -83,6 +91,7 @@ export function ReceiptsPage() {
       </EstadoDaLista>
     </Card>
     <ReceiptActionModal receipt={selected} action={action} onClose={() => setSelected(null)} />
+    <ReceiptProofPreviewModal receipt={previewedReceipt} onClose={() => setPreviewedReceipt(null)} />
     <CommissionExplanationModal receiptId={explainedReceiptId} onClose={() => setExplainedReceiptId(null)} />
   </Stack>;
 }

@@ -5,6 +5,9 @@ import pytest
 from sqlalchemy import select
 
 from app.modules.commercial.infrastructure.models.proposal_model import ProposalModel
+from app.modules.commissions.application.queries.financial_report import (
+    FinancialCommissionReportQuery,
+)
 from app.modules.commissions.application.standard_commission_engine import StandardCommissionEngine
 from app.modules.commissions.infrastructure.models.commission_models import (
     CommissionBeneficiaryPolicyModel,
@@ -222,6 +225,33 @@ async def test_motores_automaticos_geram_creditos_e_debitos_explicaveis() -> Non
                 "GENERAL_MEI_LEADER": Decimal("-72.00"),
                 "FINALIZATION_LEADER": Decimal("-54.00"),
             }
+            team_summary, team_beneficiaries = await FinancialCommissionReportQuery(
+                session
+            ).summary(
+                period_start=date(2026, 8, 14),
+                period_end=date(2026, 8, 17),
+                leader_id=commercial_leader.id,
+            )
+            assert team_summary.recognized_revenue == Decimal("6000.00")
+            assert team_summary.total_commissions == Decimal("1116.00")
+            assert {item.beneficiary_id for item in team_beneficiaries} == {
+                consultant.id,
+                commercial_leader.id,
+                general_leader.id,
+                finalizer.id,
+                finalization_leader.id,
+            }
+
+            empty_summary, empty_beneficiaries = await FinancialCommissionReportQuery(
+                session
+            ).summary(
+                period_start=date(2026, 8, 14),
+                period_end=date(2026, 8, 17),
+                leader_id=commercial_leader.id + 999_999,
+            )
+            assert empty_summary.recognized_revenue == Decimal("0.00")
+            assert empty_summary.total_commissions == Decimal("0.00")
+            assert empty_beneficiaries == []
             await session.rollback()
     finally:
         await engine.dispose()

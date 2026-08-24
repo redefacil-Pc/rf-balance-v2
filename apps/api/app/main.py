@@ -27,9 +27,11 @@ from app.modules.commissions.api.routes.financial_report import (
 from app.modules.commissions.api.routes.periods import router as periods_router
 from app.modules.commissions.api.routes.settlements import router as settlements_router
 from app.modules.commissions.api.routes.strategy_configs import router as strategy_configs_router
+from app.modules.documents.api.routes.document_jobs import router as document_jobs_router
 from app.modules.identity.api.routes.auth import router as auth_router
 from app.modules.identity.api.routes.users import router as users_router
 from app.modules.identity.infrastructure.rbac_readiness import montar_check as check_de_rbac
+from app.modules.operations.api.routes import router as operations_router
 from app.modules.organization.api.routes.collaborators import router as collaborators_router
 from app.modules.organization.api.routes.companies import router as companies_router
 from app.modules.organization.api.routes.receiving_accounts import (
@@ -106,7 +108,13 @@ def criar_app() -> FastAPI:
             allow_origins=settings.app.cors_origins,  # allowlist exata
             allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-            allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Correlation-ID"],
+            allow_headers=[
+                "Authorization",
+                "Content-Type",
+                "Idempotency-Key",
+                "X-Correlation-ID",
+                "X-CSRF-Token",
+            ],
             expose_headers=["X-Correlation-ID", "ETag"],
         )
 
@@ -127,10 +135,12 @@ def criar_app() -> FastAPI:
     app.include_router(commission_preview_router)
     app.include_router(commission_explanations_router)
     app.include_router(financial_report_router)
+    app.include_router(document_jobs_router)
     app.include_router(beneficiary_policies_router)
     app.include_router(strategy_configs_router)
     app.include_router(settlements_router)
     app.include_router(periods_router)
+    app.include_router(operations_router)
     return app
 
 

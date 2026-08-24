@@ -21,8 +21,9 @@ TEST_MIGRATION_URL = os.getenv("TEST_MIGRATION_DATABASE_URL", TEST_DATABASE_URL)
 # precisa acontecer antes de qualquer import que leia settings
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["MIGRATION_DATABASE_URL"] = TEST_MIGRATION_URL
-os.environ.setdefault("APP_ENV", "test")
+os.environ["APP_ENV"] = "test"
 os.environ.setdefault("SECRET_KEY", "chave-de-teste-com-mais-de-32-caracteres")
+os.environ["COOKIE_SECURE"] = "true"
 os.environ.setdefault("REDIS_URL", "redis://redis:6379/9")
 os.environ.setdefault("LOGIN_MAX_ATTEMPTS", "5")
 os.environ.setdefault("LOGIN_ATTEMPT_WINDOW", "900")
@@ -40,6 +41,8 @@ from app.platform.db.engine import criar_engine  # noqa: E402
 #: senão o estado vaza entre testes e a suíte passa a depender da ordem.
 TABELAS_LIMPAS = (
     "data_integrity_checks",
+    "stored_documents",
+    "document_jobs",
     "commission_settlements",
     "commission_manual_entries",
     "commission_periods",
@@ -127,7 +130,7 @@ async def app_em_teste() -> AsyncIterator[Any]:
 
 def _cliente_de(app: Any) -> AsyncClient:
     return AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://testserver", follow_redirects=False
+        transport=ASGITransport(app=app), base_url="https://testserver", follow_redirects=False
     )
 
 
@@ -150,7 +153,7 @@ def novo_cliente(app_em_teste: Any) -> Callable[[], AsyncClient]:
 
 
 @pytest.fixture
-async def admin_semeado() -> dict[str, str]:
+async def admin_semeado(_limpar_banco: None) -> dict[str, str]:
     """Cria permissões, papéis e o administrador com senha conhecida."""
     from app.modules.identity.infrastructure import seed_identity
     from app.platform.db.session.session_factory import criar_fabrica_de_sessoes

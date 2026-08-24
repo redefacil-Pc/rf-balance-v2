@@ -8,6 +8,7 @@ import type { ProposalPage, SituacaoDeAprovacao, StatusDaProposta } from '@/shar
 export interface ProposalFilters {
   status?: StatusDaProposta;
   approval_status?: SituacaoDeAprovacao;
+  exclude_approval_status?: SituacaoDeAprovacao;
   consultant_id?: number;
   external_id?: string;
   customer_name?: string;

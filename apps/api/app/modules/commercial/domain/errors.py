@@ -70,12 +70,12 @@ class TransicaoDeAprovacaoInvalidaError(DomainError):
 class PropostaSemComprovanteError(DomainError):
     status = 422
     code = "proposta-sem-comprovante"
-    title = "Proposta sem comprovante"
+    title = "Proposta sem recebimento declarado"
 
     def __init__(self) -> None:
-        # sem anexo não envia: o financeiro não aprova às cegas
         super().__init__(
-            "Anexe ao menos um comprovante de pagamento antes de enviar para aprovação."
+            "Declare ao menos um valor recebido, com seu comprovante, antes de enviar "
+            "para aprovação."
         )
 
 
@@ -95,6 +95,17 @@ class MotivoDeDevolucaoObrigatorioError(DomainError):
     status = 422
     code = "motivo-de-devolucao-obrigatorio"
     title = "Motivo de devolução obrigatório"
+
+
+class AutoAprovacaoDePropostaError(DomainError):
+    status = 409
+    code = "auto-aprovacao-de-proposta"
+    title = "Autoaprovação não permitida"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Quem declarou um recebimento desta proposta não pode aprovar a própria proposta."
+        )
 
 
 class ComprovanteNaoEncontradoError(DomainError):

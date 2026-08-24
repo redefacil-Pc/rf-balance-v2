@@ -63,7 +63,7 @@ class StandardCommissionEngine:
             .where(
                 ReceiptModel.proposal_id == proposal_id,
                 ReceiptModel.status == "APPROVED",
-                CommissionPeriodModel.status == "CLOSED",
+                CommissionPeriodModel.status != "OPEN",
                 ~exists(
                     select(CommissionCalculationSnapshotModel.id).where(
                         CommissionCalculationSnapshotModel.receipt_id == ReceiptModel.id,

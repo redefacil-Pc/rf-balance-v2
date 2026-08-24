@@ -16,7 +16,7 @@ STREAM_DE_EVENTOS = "rfbalance:domain-events"
 
 
 class OutboxDispatcher:
-    __slots__ = ("_clock", "_redis", "_session", "_stream")
+    __slots__ = ("_clock", "_maxlen", "_redis", "_session", "_stream")
 
     def __init__(
         self,
@@ -25,11 +25,13 @@ class OutboxDispatcher:
         redis: Redis,
         clock: Clock,
         stream: str = STREAM_DE_EVENTOS,
+        maxlen: int = 10_000,
     ) -> None:
         self._session = session
         self._redis = redis
         self._clock = clock
         self._stream = stream
+        self._maxlen = maxlen
 
     async def despachar_lote(self, limite: int = 100) -> int:
         agora = self._clock.now()
@@ -65,6 +67,8 @@ class OutboxDispatcher:
                             evento.payload, ensure_ascii=False, separators=(",", ":")
                         ),
                     },
+                    maxlen=self._maxlen,
+                    approximate=True,
                 )
                 evento.processed_at = agora
                 evento.attempts += 1

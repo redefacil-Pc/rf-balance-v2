@@ -7,13 +7,14 @@ from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import false, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
 from app.modules.commercial.application.ports.attachment_storage import AttachmentStorage
+from app.modules.commercial.application.ports.proposal_scope import EscopoDePropostas
 from app.modules.commercial.domain.entities.proposal import Proposal
-from app.modules.commercial.domain.policies import settlement_tolerance_policy as tolerancia
 from app.modules.commercial.domain.value_objects.situacao_de_aprovacao import SituacaoDeAprovacao
 from app.modules.commercial.domain.value_objects.status_da_proposta import StatusDaProposta
 from app.modules.commercial.infrastructure.models.proposal_model import ProposalModel
@@ -48,6 +49,7 @@ from app.modules.receivables.infrastructure.recognizers.sql_receipt_recognizer i
 )
 from app.platform.bus.outbox_recorder import SqlOutboxRecorder
 from app.platform.db.session.unit_of_work import UnitOfWork
+from app.platform.http.uploads import matches_declared_content_type
 from app.platform.time.clock import Clock
 from app.shared.domain.dinheiro import Dinheiro
 
@@ -129,6 +131,8 @@ class ReceiptService:
         idempotency_key: str,
         actor: int,
         correlation_id: str | None,
+        scope: EscopoDePropostas,
+        commit: bool = True,
     ) -> ReceiptResult:
         self._validate_proof(content_type, content)
         request_hash = hashlib.sha256(
@@ -151,6 +155,7 @@ class ReceiptService:
         proposal = await self._proposals.obter_para_atualizacao(proposal_id)
         if proposal is None:
             raise RecebimentoInvalidoError(f"Proposta {proposal_id} não encontrada.")
+        await self._ensure_proposal_in_scope(proposal_id, scope)
         if proposal.status is StatusDaProposta.CANCELLED:
             raise FluxoDeRecebimentoInvalidoError("A proposta está cancelada.")
         if not proposal.aceita_recebimento:
@@ -160,17 +165,6 @@ class ReceiptService:
             raise RecebimentoInvalidoError("Selecione uma conta de recebimento ativa.")
 
         payment_datetime = self._validate_payment_datetime(business_date, payment_time)
-        reconhecedor = SqlReceiptRecognizer(self._session, self._clock.now())
-        ja_declarado = await reconhecedor.total_declarado(proposal_id)
-        limite = (
-            proposal.company_commission_amount
-            + tolerancia.resolver(proposal.tolerance_policy_version).excedente_tolerado
-        )
-        if ja_declarado + Dinheiro.de(amount) > limite:
-            raise RecebimentoInvalidoError(
-                "O valor ultrapassa o saldo da proposta e a tolerância de sobrepagamento."
-            )
-
         extension = TIPOS_ACEITOS[content_type]
         storage_key = f"receipts/{proposal_id}/{uuid.uuid4().hex}{extension}"
         await self._storage.guardar(chave=storage_key, conteudo=content, content_type=content_type)
@@ -219,7 +213,12 @@ class ReceiptService:
                 "business_date": receipt.business_date.isoformat(),
             },
         )
-        await self._uow.commit()
+        if commit:
+            try:
+                await self._uow.commit()
+            except Exception:
+                await self.discard_uploaded(storage_key)
+                raise
         return ReceiptResult(
             receipt,
             proposal.status.value,
@@ -302,7 +301,14 @@ class ReceiptService:
             atualizada.outstanding_amount.valor,
         )
 
-    async def remove(self, *, receipt_id: int, actor: int, correlation_id: str | None) -> None:
+    async def remove(
+        self,
+        *,
+        receipt_id: int,
+        actor: int,
+        correlation_id: str | None,
+        scope: EscopoDePropostas,
+    ) -> None:
         """Remove um recebimento ainda não conferido.
 
         Existe porque a Finalização digita antes de enviar e erra: valor trocado,
@@ -310,6 +316,7 @@ class ReceiptService:
         Financeiro analisa não muda por baixo da decisão.
         """
         receipt = await self._locked(receipt_id)
+        await self._ensure_proposal_in_scope(receipt.proposal_id, scope)
         if receipt.status != DECLARADO:
             raise FluxoDeRecebimentoInvalidoError(
                 "Este recebimento já foi conferido. Use o estorno."
@@ -421,7 +428,11 @@ class ReceiptService:
         )
 
     async def list(
-        self, *, status: str | None = None, proposal_id: int | None = None
+        self,
+        *,
+        scope: EscopoDePropostas,
+        status: str | None = None,
+        proposal_id: int | None = None,
     ) -> list[ReceiptListItem]:
         ultimo_motivo_de_estorno = (
             select(ReceiptReversalModel.reason)
@@ -456,6 +467,7 @@ class ReceiptService:
             query = query.where(ReceiptModel.status == status)
         if proposal_id:
             query = query.where(ReceiptModel.proposal_id == proposal_id)
+        query = query.where(self._scope_clause(scope))
         rows = (
             await self._session.execute(query.order_by(ReceiptModel.created_at.desc()).limit(200))
         ).all()
@@ -472,11 +484,44 @@ class ReceiptService:
             for row in rows
         ]
 
-    async def get(self, receipt_id: int) -> ReceiptModel:
-        receipt = await self._session.get(ReceiptModel, receipt_id)
+    async def get(self, receipt_id: int, *, scope: EscopoDePropostas) -> ReceiptModel:
+        receipt = await self._session.scalar(
+            select(ReceiptModel)
+            .join(ProposalModel, ProposalModel.id == ReceiptModel.proposal_id)
+            .where(ReceiptModel.id == receipt_id, self._scope_clause(scope))
+        )
         if receipt is None:
             raise RecebimentoNaoEncontradoError(f"Recebimento {receipt_id} não encontrado.")
         return receipt
+
+    async def _ensure_proposal_in_scope(
+        self, proposal_id: int, scope: EscopoDePropostas
+    ) -> None:
+        visible = await self._session.scalar(
+            select(ProposalModel.id).where(
+                ProposalModel.id == proposal_id,
+                self._scope_clause(scope),
+            )
+        )
+        if visible is None:
+            raise RecebimentoNaoEncontradoError("Proposta ou recebimento não encontrado.")
+
+    @staticmethod
+    def _scope_clause(scope: EscopoDePropostas) -> ColumnElement[bool]:
+        if scope.irrestrito:
+            return true()
+        clauses = []
+        if scope.colaboradores:
+            clauses.append(
+                or_(
+                    ProposalModel.consultant_id.in_(scope.colaboradores),
+                    ProposalModel.bko_collaborator_id.in_(scope.colaboradores),
+                    ProposalModel.finalizer_collaborator_id.in_(scope.colaboradores),
+                )
+            )
+        if scope.registradores:
+            clauses.append(ProposalModel.created_by.in_(scope.registradores))
+        return or_(*clauses) if clauses else false()
 
     async def _locked(self, receipt_id: int) -> ReceiptModel:
         receipt = await self._session.scalar(
@@ -509,6 +554,12 @@ class ReceiptService:
             proposal.outstanding_amount.valor,
         )
 
+    async def discard_uploaded(self, storage_key: str) -> None:
+        from contextlib import suppress
+
+        with suppress(Exception):
+            await self._storage.remover(storage_key)
+
     @staticmethod
     def _validate_proof(content_type: str, content: bytes) -> None:
         if content_type not in TIPOS_ACEITOS:
@@ -517,6 +568,10 @@ class ReceiptService:
             raise RecebimentoInvalidoError("O comprovante está vazio.")
         if len(content) > TAMANHO_MAXIMO:
             raise RecebimentoInvalidoError("O comprovante ultrapassa 10 MB.")
+        if not matches_declared_content_type(content_type, content):
+            raise RecebimentoInvalidoError(
+                "O conteúdo do arquivo não corresponde ao tipo PDF, JPG ou PNG informado."
+            )
 
     def _validate_business_date(self, business_date: date) -> None:
         if business_date > self._clock.business_date():

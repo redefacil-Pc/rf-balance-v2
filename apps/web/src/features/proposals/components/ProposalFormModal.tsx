@@ -2,9 +2,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert, Button, Grid, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconAlertTriangle } from '@tabler/icons-react';
+import { useCallback, useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 
-import { useCreateProposal } from '@/features/proposals/mutations/useCreateProposal';
+import {
+  useCreateProposal,
+  useCreateProposalWithReceipt,
+} from '@/features/proposals/mutations/useCreateProposal';
 import { useColaboradoresPorPapel } from '@/features/proposals/queries/useColaboradoresPorPapel';
 import {
   proposalSchema,
@@ -23,31 +27,33 @@ import { mascararPercentual, percentualParaDecimal } from '@/shared/formatters/p
 
 interface Props {
   aberto: boolean;
+  podeDeclararPagamento: boolean;
   onFechar: () => void;
 }
 
-const HOJE = new Date().toISOString().slice(0, 10);
-
-const VAZIO: ProposalFormEntrada = {
-  consultant_id: undefined as unknown as number,
-  business_date: HOJE,
-  customer_name: '',
-  customer_document: '',
-  operation_amount: '',
-  tps_percentage: '',
-  external_id: '',
-  bko_collaborator_id: null,
-  finalizer_collaborator_id: null,
-};
+function formularioVazio(): ProposalFormEntrada {
+  return {
+    consultant_id: undefined as unknown as number,
+    business_date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
+    customer_name: '',
+    customer_document: '',
+    operation_amount: '',
+    tps_percentage: '',
+    external_id: '',
+    bko_collaborator_id: null,
+    finalizer_collaborator_id: null,
+  };
+}
 
 /** Cadastro de proposta. A alteração é outro fluxo: `ProposalEditModal`. */
-export function ProposalFormModal({ aberto, onFechar }: Props) {
+export function ProposalFormModal({ aberto, podeDeclararPagamento, onFechar }: Props) {
   const criar = useCreateProposal();
+  const criarComPagamento = useCreateProposalWithReceipt();
   const consultores = useColaboradoresPorPapel([
     'CONSULTOR',
     'CONSULTOR_MEI_ESCALONADO',
   ]);
-  const pagamento = usePagamentoNoCadastro();
+  const pagamento = usePagamentoNoCadastro(podeDeclararPagamento);
   const bkos = useColaboradoresPorPapel('BKO');
   const finalizadores = useColaboradoresPorPapel('FINALIZACAO');
 
@@ -61,8 +67,27 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
     formState: { errors },
   } = useForm<ProposalFormEntrada, unknown, ProposalForm>({
     resolver: zodResolver(proposalSchema),
-    defaultValues: VAZIO,
+    defaultValues: formularioVazio(),
   });
+
+  const limparPagamento = pagamento.limpar;
+  const resetarCriacao = criar.reset;
+  const resetarCriacaoComPagamento = criarComPagamento.reset;
+  const limparFormulario = useCallback(() => {
+    reset(formularioVazio());
+    limparPagamento();
+    resetarCriacao();
+    resetarCriacaoComPagamento();
+  }, [limparPagamento, reset, resetarCriacao, resetarCriacaoComPagamento]);
+
+  const fechar = useCallback(() => {
+    limparFormulario();
+    onFechar();
+  }, [limparFormulario, onFechar]);
+
+  useEffect(() => {
+    if (aberto) limparFormulario();
+  }, [aberto, limparFormulario]);
 
   // a tela não calcula dinheiro: manda os mesmos valores que gravaria e o
   // servidor responde rodando o motor de comissão de verdade
@@ -76,7 +101,9 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
   const enviar = handleSubmit(async (form) => {
     let resultado;
     try {
-      resultado = await criar.mutateAsync(form);
+      resultado = pagamento.receipt
+        ? await criarComPagamento.mutateAsync({ form, receipt: pagamento.receipt })
+        : await criar.mutateAsync(form);
     } catch (erro) {
       if (erro instanceof ApiError) {
         for (const [campo, mensagem] of Object.entries(erro.erroDeCampo)) {
@@ -86,39 +113,12 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
       return;
     }
 
-    const limpar = () => {
-      reset(VAZIO);
-      pagamento.limpar();
-      onFechar();
-    };
-
-    // A proposta já existe; o recebimento é uma segunda chamada. Se ela falhar,
-    // a proposta não é desfeita — dizer isso e apontar onde completar é melhor
-    // que um sucesso que esconde metade do trabalho.
-    if (pagamento.preenchido) {
-      try {
-        await pagamento.declarar(resultado.id);
-      } catch (erro) {
-        notifications.show({
-          color: 'yellow',
-          title: 'Proposta criada, mas o pagamento não foi declarado',
-          message:
-            erro instanceof ApiError
-              ? erro.problem.detail
-              : 'Abra a proposta e declare o recebimento para concluir.',
-          autoClose: false,
-        });
-        limpar();
-        return;
-      }
-    }
-
     notifications.show({
       color: 'positivo',
       title: 'Proposta cadastrada',
       message: `Comissão da empresa: ${formatarMoeda(resultado.company_commission_amount)}`,
     });
-    limpar();
+    fechar();
   });
 
   const opcoes = (dados: { items: { id: number; full_name: string }[] } | undefined) =>
@@ -128,18 +128,18 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
     }));
 
   return (
-    <Modal opened={aberto} onClose={onFechar} title="Nova proposta" size="lg" centered>
+    <Modal opened={aberto} onClose={fechar} title="Nova proposta" size="lg" centered>
       <form onSubmit={enviar} noValidate>
         <Stack gap="md">
-          {criar.error && (
+          {(criar.error ?? criarComPagamento.error) && (
             <Alert
               variant="light"
               color="red"
               icon={<IconAlertTriangle size={18} />}
-              title={criar.error.problem.title}
+              title={(criar.error ?? criarComPagamento.error)?.problem.title}
               role="alert"
             >
-              <Text size="sm">{criar.error.problem.detail}</Text>
+              <Text size="sm">{(criar.error ?? criarComPagamento.error)?.problem.detail}</Text>
             </Alert>
           )}
 
@@ -271,7 +271,7 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
             </Grid.Col>
           </Grid>
 
-          <PagamentoNoCadastro pagamento={pagamento} />
+          {podeDeclararPagamento && <PagamentoNoCadastro pagamento={pagamento} />}
 
           <Text size="xs" c="dimmed">
             A comissão da empresa é calculada no servidor a partir do valor e do TPS. Esta tela não
@@ -279,12 +279,12 @@ export function ProposalFormModal({ aberto, onFechar }: Props) {
           </Text>
 
           <Group justify="flex-end" mt="sm">
-            <Button variant="default" onClick={onFechar}>
+            <Button variant="default" onClick={fechar}>
               Cancelar
             </Button>
             <Button
               type="submit"
-              loading={criar.isPending}
+              loading={criar.isPending || criarComPagamento.isPending}
               // bloco de pagamento pela metade não cadastra: ou completa, ou zera o valor
               disabled={pagamento.preenchido && !pagamento.completo}
             >

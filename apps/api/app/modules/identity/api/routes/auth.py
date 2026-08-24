@@ -14,6 +14,7 @@ from app.modules.identity.api import cookies
 from app.modules.identity.api.dependencies import (
     CurrentUser,
     Uow,
+    contextualizar_permissoes,
     get_authenticate_handler,
     get_refresh_handler,
     get_revoke_handler,
@@ -69,19 +70,19 @@ async def login(
         csrf_token=resultado.csrf_token,
         settings=request.app.state.settings.security,
     )
-    # As permissões saem do papel, e de nada mais. Houve aqui um acréscimo de
-    # `receipts:*` para o Operacional com função de Finalização — mas quem
-    # autoriza cada rota é `require_permission`, que lê o banco. O login
-    # prometia o que a chamada seguinte negava, e o `/auth/me` respondia
-    # diferente do próprio login para o mesmo usuário. A permissão agora é
-    # concedida de verdade no catálogo; a função operacional continua sendo
-    # verificada onde importa, no `_require_launcher` da rota de recebimento.
+    permissions = await contextualizar_permissoes(
+        user_id=resultado.user_id,
+        roles=resultado.roles,
+        permissions=resultado.permissions,
+        uow=uow,
+        reference=request.app.state.clock.business_date(),
+    )
     return CurrentUserResponse(
         id=resultado.user_id,
         email=resultado.email,
         full_name=resultado.full_name,
         roles=resultado.roles,
-        permissions=sorted(resultado.permissions),
+        permissions=sorted(permissions),
         must_change_password=resultado.must_change_password,
     )
 

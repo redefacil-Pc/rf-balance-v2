@@ -67,6 +67,9 @@ class SettlementResponse(BaseModel):
     carryover_amount: str
     bonus_amount: str
     discount_amount: str
+    manual_discount_amount: str
+    reversal_discount_amount: str
+    reversal_carryover_amount: str
     deferred_amount: str
     paid_amount: str
     payable_amount: str

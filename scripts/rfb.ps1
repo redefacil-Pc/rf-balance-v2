@@ -12,6 +12,7 @@ param(
     [Parameter(Position = 0)]
     [ValidateSet('up', 'down', 'restart', 'build', 'logs', 'ps', 'shell', 'migrate', 'revision',
                  'downgrade', 'seed', 'seed-demo', 'sync-rbac', 'sync-rbac-purge',
+                 'validate-golden',
                  'test', 'test-unit', 'test-integration', 'lint', 'format',
                  'typecheck', 'web-test', 'web-build', 'openapi', 'clean', 'help')]
     [string]$Command = 'help',
@@ -32,9 +33,9 @@ if (-not (Test-Path (Join-Path $repo '.env'))) {
 
 $compose = @('compose', '-f', 'infrastructure/compose/docker-compose.yml', '--env-file', '.env')
 
-function Invoke-Compose { param([string[]]$Args) & docker @($compose + $Args) }
-function Invoke-Api { param([string[]]$Args) Invoke-Compose (@('exec', '-T', 'api') + $Args) }
-function Invoke-Web { param([string[]]$Args) Invoke-Compose (@('exec', '-T', 'web') + $Args) }
+function Invoke-Compose { param([string[]]$CommandArgs) & docker @($compose + $CommandArgs) }
+function Invoke-Api { param([string[]]$CommandArgs) Invoke-Compose (@('exec', '-T', 'api') + $CommandArgs) }
+function Invoke-Web { param([string[]]$CommandArgs) Invoke-Compose (@('exec', '-T', 'web') + $CommandArgs) }
 
 switch ($Command) {
     'up' {
@@ -64,6 +65,7 @@ switch ($Command) {
     }
     'seed'      { Invoke-Api @('python', '-m', 'app.platform.db.seed') }
     'seed-demo' { Invoke-Api @('python', '-m', 'app.platform.db.seed_demo') }
+    'validate-golden' { Invoke-Api @('python', '-m', 'app.platform.db.validate_golden_cases') }
 
     'test'             { Invoke-Api @('pytest', 'tests/unit'); Invoke-Web @('npm', 'run', 'test') }
     'test-unit'        { Invoke-Api @('pytest', 'tests/unit') }

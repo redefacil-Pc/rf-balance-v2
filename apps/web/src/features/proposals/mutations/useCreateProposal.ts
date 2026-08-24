@@ -32,3 +32,59 @@ export function useCreateProposal() {
     },
   });
 }
+
+export interface InitialReceiptInput {
+  amount: string;
+  businessDate: string;
+  paymentTime: string;
+  paymentMethod: string;
+  receivingAccountId: number;
+  proof: File;
+  idempotencyKey: string;
+}
+
+interface CreateProposalWithReceiptInput {
+  form: ProposalForm;
+  receipt: InitialReceiptInput;
+}
+
+export function useCreateProposalWithReceipt() {
+  const client = useQueryClient();
+
+  return useMutation<
+    ProposalWriteResult & { receipt_id: number },
+    ApiError,
+    CreateProposalWithReceiptInput
+  >({
+    mutationFn: ({ form, receipt }) => {
+      const body = new FormData();
+      body.set('consultant_id', String(form.consultant_id));
+      body.set('proposal_business_date', form.business_date);
+      body.set('customer_name', form.customer_name);
+      body.set('customer_document', form.customer_document);
+      body.set('operation_amount', form.operation_amount);
+      body.set('tps_percentage', form.tps_percentage);
+      if (form.external_id) body.set('external_id', form.external_id);
+      if (form.bko_collaborator_id !== null) {
+        body.set('bko_collaborator_id', String(form.bko_collaborator_id));
+      }
+      if (form.finalizer_collaborator_id !== null) {
+        body.set('finalizer_collaborator_id', String(form.finalizer_collaborator_id));
+      }
+      body.set('amount', receipt.amount);
+      body.set('payment_business_date', receipt.businessDate);
+      if (receipt.paymentTime) body.set('payment_time', receipt.paymentTime);
+      body.set('payment_method', receipt.paymentMethod);
+      body.set('receiving_account_id', String(receipt.receivingAccountId));
+      body.set('proof', receipt.proof);
+      return requisitar<ProposalWriteResult & { receipt_id: number }>(
+        '/proposals/with-receipt',
+        { method: 'POST', body, idempotencyKey: receipt.idempotencyKey },
+      );
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: proposalKeys.todos });
+      void client.invalidateQueries({ queryKey: ['receipts'] });
+    },
+  });
+}

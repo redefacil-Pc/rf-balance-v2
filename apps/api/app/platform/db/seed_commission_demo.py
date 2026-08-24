@@ -29,10 +29,8 @@ from app.modules.commercial.application.commands.submit_proposal import (
     SubmitProposal,
     SubmitProposalHandler,
 )
+from app.modules.commercial.application.ports.proposal_scope import EscopoDePropostas
 from app.modules.commercial.infrastructure.models.proposal_model import ProposalModel
-from app.modules.commercial.infrastructure.repositories.sql_proposal_attachment_repository import (
-    SqlProposalAttachmentRepository,
-)
 from app.modules.commercial.infrastructure.repositories.sql_proposal_repository import (
     SqlProposalRepository,
 )
@@ -106,6 +104,7 @@ class Populador:
         self.storage = ObjectAttachmentStorage(
             criar_cliente(self.settings.storage),
             self.settings.storage.object_storage_bucket,
+            self.settings.storage.object_storage_prefix,
         )
         self.today = self.clock.business_date()
         self.receiving_account_id = 0
@@ -283,6 +282,7 @@ class Populador:
                 idempotency_key=f"seed-{external_id}-{suffix}",
                 actor=context.launcher_user_id,
                 correlation_id=f"seed:{external_id}",
+                scope=EscopoDePropostas.total(),
             )
             return result.receipt.id
 
@@ -293,7 +293,6 @@ class Populador:
             submitted = await SubmitProposalHandler(
                 uow=uow,
                 propostas=SqlProposalRepository(uow.session, self.cipher),
-                anexos=SqlProposalAttachmentRepository(uow.session),
                 recebimentos=SqlReceiptRecognizer(uow.session, self.clock.now()),
                 audit=SqlAuditRecorder(uow.session, self.clock),
                 clock=self.clock,

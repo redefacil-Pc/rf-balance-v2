@@ -5,16 +5,16 @@ import { Button, Card, createTheme, Modal, type MantineColorsTuple } from '@mant
  * componente nenhum define hex à mão.
  */
 const marca: MantineColorsTuple = [
-  '#eef3ff',
-  '#dce4f5',
-  '#b9c7e2',
-  '#94a8d0',
-  '#748dc0',
-  '#5f7cb8',
-  '#5474b4',
-  '#44639f',
-  '#3a5890',
-  '#2c4b80',
+  '#f0f3ff',
+  '#e2e7ff',
+  '#c7d0fe',
+  '#a7b4fb',
+  '#8999f5',
+  '#7183ee',
+  '#6072e5',
+  '#4f5fd0',
+  '#424fad',
+  '#39458a',
 ];
 
 /** Verde reservado para confirmação de valor recebido. */
@@ -35,16 +35,16 @@ export const theme = createTheme({
   primaryColor: 'marca',
   primaryShade: { light: 7, dark: 5 },
   colors: { marca, positivo },
-  defaultRadius: 'md',
+  defaultRadius: 'lg',
   fontFamily:
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    'Aptos, "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif',
   fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  headings: { fontWeight: '600' },
+  headings: { fontWeight: '650', fontFamily: 'Aptos, "Segoe UI Variable", "Segoe UI", sans-serif' },
   cursorType: 'pointer',
   focusRing: 'auto',
   components: {
     Button: Button.extend({
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 'lg' },
     }),
     Card: Card.extend({
       defaultProps: { radius: 'lg' },

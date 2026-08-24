@@ -74,5 +74,6 @@ class RbacProposalScope:
             return (eu.id,)
 
         equipe = await self._vinculos.equipe_do_lider_em(leader_id=eu.id, referencia=referencia)
-        # o líder entra na própria lista: ele também produz
+        # O líder não realiza venda nova, mas permanece no recorte para que
+        # propostas históricas continuem auditáveis.
         return tuple({eu.id, *(v.consultant_id for v in equipe)})

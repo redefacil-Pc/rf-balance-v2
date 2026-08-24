@@ -1,6 +1,9 @@
 import { Badge, Card, Group, Modal, SimpleGrid, Stack, Table, Text } from '@mantine/core';
 
-import { useFinancialReportDetails } from '@/features/reports/queries/useFinancialReport';
+import {
+  useFinancialReportDetails,
+  type FinancialReportScope,
+} from '@/features/reports/queries/useFinancialReport';
 import type { Period } from '@/features/settlements/queries/useSettlements';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
 import { formatarMoeda } from '@/shared/formatters/currency';
@@ -9,6 +12,7 @@ import type { FinancialReportBeneficiary } from '@/shared/types/commissions';
 interface Props {
   beneficiary: FinancialReportBeneficiary | null;
   period: Period;
+  scope?: FinancialReportScope;
   onClose: () => void;
 }
 
@@ -47,8 +51,12 @@ function Metric({ label, value, detail, color }: {
   </Card>;
 }
 
-export function FinancialReportDetailModal({ beneficiary, period, onClose }: Props) {
-  const query = useFinancialReportDetails(beneficiary?.beneficiary_id ?? null, period);
+export function FinancialReportDetailModal({ beneficiary, period, scope = {}, onClose }: Props) {
+  const query = useFinancialReportDetails(
+    beneficiary?.beneficiary_id ?? null,
+    period,
+    scope,
+  );
   const items = query.data?.items ?? [];
   const summary = query.data?.summary;
   const roles = beneficiary?.strategies.map((item) => strategyLabels[item] ?? item).join(' · ');

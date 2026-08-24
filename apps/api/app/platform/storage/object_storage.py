@@ -10,6 +10,17 @@ from botocore.client import Config as BotoConfig
 from app.platform.config.storage import StorageSettings
 
 
+def normalizar_prefixo(prefixo: str) -> str:
+    """Normaliza um namespace S3 sem permitir uma chave absoluta."""
+    return prefixo.strip().strip("/")
+
+
+def chave_com_prefixo(chave: str, prefixo: str) -> str:
+    chave_limpa = chave.strip().lstrip("/")
+    prefixo_limpo = normalizar_prefixo(prefixo)
+    return f"{prefixo_limpo}/{chave_limpa}" if prefixo_limpo else chave_limpa
+
+
 def criar_cliente(settings: StorageSettings) -> Any:
     return boto3.client(
         "s3",

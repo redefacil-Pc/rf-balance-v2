@@ -6,7 +6,6 @@ import {
   Stack,
   Table,
   Text,
-  Title,
 } from '@mantine/core';
 import { IconClipboardCheck, IconRefresh } from '@tabler/icons-react';
 import { useState } from 'react';
@@ -14,6 +13,7 @@ import { useState } from 'react';
 import { ProposalApprovalModal } from '@/features/proposals/components/ProposalApprovalModal';
 import { useProposals } from '@/features/proposals/queries/useProposals';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
+import { PageHeader } from '@/shared/components/PageHeader';
 import { formatarMoeda } from '@/shared/formatters/currency';
 import type { Proposal } from '@/shared/types/commercial';
 
@@ -21,41 +21,48 @@ function formatarData(data: string): string {
   return data.split('-').reverse().join('/');
 }
 
+export function proximaProposta(
+  propostas: Proposal[],
+  decididaId: number,
+): Proposal | null {
+  const indice = propostas.findIndex((item) => item.id === decididaId);
+  const restantes = propostas.filter((item) => item.id !== decididaId);
+  return restantes[indice] ?? restantes[0] ?? null;
+}
+
 /** Fila de trabalho do Financeiro: exibe apenas propostas enviadas e ainda não decididas. */
 export function ProposalApprovalsPage() {
   const consulta = useProposals({ approval_status: 'SUBMITTED' });
   const [selecionada, setSelecionada] = useState<Proposal | null>(null);
   const propostas = (consulta.data?.pages ?? []).flatMap((pagina) => pagina.items);
+  const avancar = (decididaId: number) => {
+    setSelecionada(proximaProposta(propostas, decididaId));
+  };
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-start">
-        <div>
-          <Group gap="sm">
-            <Title order={2} size="h3">
-              Propostas para aprovação
-            </Title>
-            {!consulta.isPending && (
-              <Badge variant="light" color={propostas.length > 0 ? 'yellow' : 'gray'}>
-                {propostas.length} pendente{propostas.length === 1 ? '' : 's'}
-              </Badge>
-            )}
-          </Group>
-          <Text c="dimmed" size="sm" mt={4}>
-            Confira os dados e comprovantes antes de aprovar ou devolver para correção.
-          </Text>
-        </div>
-        <Button
-          variant="default"
-          leftSection={<IconRefresh size={16} />}
-          loading={consulta.isFetching}
-          onClick={() => void consulta.refetch()}
-        >
-          Atualizar fila
-        </Button>
-      </Group>
+      <PageHeader
+        eyebrow="Financeiro"
+        icon={IconClipboardCheck}
+        title="Fila de aprovação"
+        description="Confira a operação e o comprovante antes de reconhecer os valores financeiros."
+        badge={!consulta.isPending
+          ? `${propostas.length} pendente${propostas.length === 1 ? '' : 's'}`
+          : undefined}
+        badgeColor={propostas.length > 0 ? 'orange' : 'gray'}
+        actions={
+          <Button
+            variant="default"
+            leftSection={<IconRefresh size={16} />}
+            loading={consulta.isFetching}
+            onClick={() => void consulta.refetch()}
+          >
+            Atualizar fila
+          </Button>
+        }
+      />
 
-      <Card withBorder radius="md" padding={0}>
+      <Card withBorder padding={0} className="rf-data-card">
         <EstadoDaLista
           carregando={consulta.isPending}
           erro={consulta.error ?? null}
@@ -132,7 +139,11 @@ export function ProposalApprovalsPage() {
         </Group>
       )}
 
-      <ProposalApprovalModal proposta={selecionada} onFechar={() => setSelecionada(null)} />
+      <ProposalApprovalModal
+        proposta={selecionada}
+        onFechar={() => setSelecionada(null)}
+        onDecidida={avancar}
+      />
     </Stack>
   );
 }

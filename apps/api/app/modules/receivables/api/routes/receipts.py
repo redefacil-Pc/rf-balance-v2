@@ -17,6 +17,13 @@ from fastapi import (
     status,
 )
 
+from app.modules.commercial.api.dependencies import Escopo, get_create_proposal_handler
+from app.modules.commercial.api.schemas.proposal import ProposalWithReceiptWriteResponse
+from app.modules.commercial.application.commands.create_proposal import (
+    CreateProposal,
+    CreateProposalHandler,
+)
+from app.modules.commercial.domain.value_objects.status_da_proposta import StatusDaProposta
 from app.modules.commercial.infrastructure.storage.object_attachment_storage import (
     ObjectAttachmentStorage,
 )
@@ -34,10 +41,26 @@ from app.modules.receivables.api.schemas.receipt import (
     ReceiptReversalRequest,
     ReceiptWriteResponse,
 )
-from app.modules.receivables.application.receipt_service import ReceiptResult, ReceiptService
-from app.modules.receivables.domain.errors import LancadorDeRecebimentoInvalidoError
+from app.modules.receivables.application.receipt_service import (
+    TAMANHO_MAXIMO,
+    ReceiptResult,
+    ReceiptService,
+)
+from app.modules.receivables.domain.errors import (
+    LancadorDeRecebimentoInvalidoError,
+    RecebimentoInvalidoError,
+)
+from app.platform.http.content_disposition import content_disposition
+from app.platform.http.uploads import read_upload_limited
 
 router = APIRouter(prefix="/api/v1", tags=["receivables"])
+
+
+async def _read_proof(proof: UploadFile) -> bytes:
+    try:
+        return await read_upload_limited(proof, max_bytes=TAMANHO_MAXIMO)
+    except ValueError as exc:
+        raise RecebimentoInvalidoError("O comprovante ultrapassa 10 MB.") from exc
 
 
 def _write_response(result: ReceiptResult) -> ReceiptWriteResponse:
@@ -49,6 +72,91 @@ def _write_response(result: ReceiptResult) -> ReceiptWriteResponse:
         proposal_status=result.proposal_status,
         proposal_paid_amount=str(result.proposal_paid_amount),
         proposal_outstanding_amount=str(result.proposal_outstanding_amount),
+    )
+
+
+@router.post(
+    "/proposals/with-receipt",
+    response_model=ProposalWithReceiptWriteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_proposal_with_receipt(
+    request: Request,
+    uow: Uow,
+    actor: Annotated[
+        User, Depends(require_permission("proposals:write", "receipts:write"))
+    ],
+    proposal_handler: Annotated[
+        CreateProposalHandler, Depends(get_create_proposal_handler)
+    ],
+    receipt_service: Annotated[ReceiptService, Depends(get_receipt_service)],
+    scope: Escopo,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=100)],
+    consultant_id: Annotated[int, Form()],
+    proposal_business_date: Annotated[date, Form()],
+    customer_name: Annotated[str, Form(min_length=3, max_length=200)],
+    customer_document: Annotated[str, Form(min_length=11, max_length=20)],
+    operation_amount: Annotated[Decimal, Form(gt=0, max_digits=18, decimal_places=2)],
+    tps_percentage: Annotated[Decimal, Form(ge=0, le=100, max_digits=9, decimal_places=6)],
+    amount: Annotated[Decimal, Form(gt=0, max_digits=18, decimal_places=2)],
+    payment_business_date: Annotated[date, Form()],
+    payment_method: Annotated[str, Form(min_length=2, max_length=30)],
+    receiving_account_id: Annotated[int, Form()],
+    proof: Annotated[UploadFile, File()],
+    external_id: Annotated[str | None, Form(max_length=60)] = None,
+    bko_collaborator_id: Annotated[int | None, Form()] = None,
+    finalizer_collaborator_id: Annotated[int | None, Form()] = None,
+    payment_time: Annotated[time | None, Form()] = None,
+) -> ProposalWithReceiptWriteResponse:
+    """Persiste proposta e pagamento inicial no mesmo commit de banco."""
+    await _require_launcher(actor, uow, request.app.state.clock.business_date())
+    correlation_id = getattr(request.state, "correlation_id", None)
+    proposal = await proposal_handler.execute(
+        CreateProposal(
+            consultant_id=consultant_id,
+            business_date=proposal_business_date,
+            customer_name=customer_name,
+            customer_document=customer_document,
+            operation_amount=operation_amount,
+            tps_percentage=tps_percentage,
+            external_id=external_id,
+            bko_collaborator_id=bko_collaborator_id,
+            finalizer_collaborator_id=finalizer_collaborator_id,
+            ator=actor.id,
+            correlation_id=correlation_id,
+        ),
+        commit=False,
+    )
+    receipt = await receipt_service.create(
+        proposal_id=proposal.id,
+        amount=amount,
+        business_date=payment_business_date,
+        payment_time=payment_time,
+        payment_method=payment_method,
+        receiving_account_id=receiving_account_id,
+        reference=None,
+        notes=None,
+        file_name=proof.filename or "comprovante",
+        content_type=proof.content_type or "application/octet-stream",
+        content=await _read_proof(proof),
+        idempotency_key=idempotency_key,
+        actor=actor.id,
+        correlation_id=correlation_id,
+        scope=scope,
+        commit=False,
+    )
+    try:
+        await uow.commit()
+    except Exception:
+        await receipt_service.discard_uploaded(receipt.receipt.proof_storage_key)
+        raise
+    return ProposalWithReceiptWriteResponse(
+        id=proposal.id,
+        status=StatusDaProposta(proposal.status),
+        company_commission_amount=str(proposal.company_commission_amount),
+        outstanding_amount=str(proposal.outstanding_amount),
+        version=proposal.version,
+        receipt_id=receipt.receipt.id,
     )
 
 
@@ -76,11 +184,12 @@ def _require_finance(actor: User) -> None:
 async def list_receipts(
     actor: Annotated[User, Depends(require_permission("receipts:read"))],
     service: Annotated[ReceiptService, Depends(get_receipt_service)],
+    scope: Escopo,
     receipt_status: Annotated[str | None, Query(alias="status")] = None,
     proposal_id: Annotated[int | None, Query()] = None,
 ) -> ReceiptPageResponse:
     del actor
-    rows = await service.list(status=receipt_status, proposal_id=proposal_id)
+    rows = await service.list(scope=scope, status=receipt_status, proposal_id=proposal_id)
     return ReceiptPageResponse(
         items=[
             ReceiptResponse(
@@ -125,6 +234,7 @@ async def create_receipt(
     uow: Uow,
     actor: Annotated[User, Depends(require_permission("receipts:write"))],
     service: Annotated[ReceiptService, Depends(get_receipt_service)],
+    scope: Escopo,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=100)],
     amount: Annotated[Decimal, Form(gt=0, max_digits=18, decimal_places=2)],
     business_date: Annotated[date, Form()],
@@ -150,10 +260,11 @@ async def create_receipt(
         notes=notes,
         file_name=proof.filename or "comprovante",
         content_type=proof.content_type or "application/octet-stream",
-        content=await proof.read(),
+        content=await _read_proof(proof),
         idempotency_key=idempotency_key,
         actor=actor.id,
         correlation_id=getattr(request.state, "correlation_id", None),
+        scope=scope,
     )
     return _write_response(result)
 
@@ -191,6 +302,7 @@ async def remove_receipt(
     uow: Uow,
     actor: Annotated[User, Depends(require_permission("receipts:write"))],
     service: Annotated[ReceiptService, Depends(get_receipt_service)],
+    scope: Escopo,
 ) -> None:
     """Remove um recebimento declarado, antes do envio da proposta.
 
@@ -203,6 +315,7 @@ async def remove_receipt(
         receipt_id=receipt_id,
         actor=actor.id,
         correlation_id=getattr(request.state, "correlation_id", None),
+        scope=scope,
     )
 
 
@@ -232,15 +345,24 @@ async def download_proof(
     request: Request,
     actor: Annotated[User, Depends(require_permission("receipts:read"))],
     service: Annotated[ReceiptService, Depends(get_receipt_service)],
+    scope: Escopo,
+    preview: bool = False,
 ) -> Response:
     del actor
-    receipt = await service.get(receipt_id)
+    receipt = await service.get(receipt_id, scope=scope)
     storage = ObjectAttachmentStorage(
-        request.app.state.storage, request.app.state.settings.storage.object_storage_bucket
+        request.app.state.storage,
+        request.app.state.settings.storage.object_storage_bucket,
+        request.app.state.settings.storage.object_storage_prefix,
     )
     content = await storage.ler(receipt.proof_storage_key)
+    disposition = "inline" if preview else "attachment"
     return Response(
         content=content,
         media_type=receipt.proof_content_type,
-        headers={"Content-Disposition": f'attachment; filename="{receipt.proof_file_name}"'},
+        headers={
+            "Content-Disposition": content_disposition(
+                receipt.proof_file_name, inline=disposition == "inline"
+            )
+        },
     )

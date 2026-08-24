@@ -99,6 +99,33 @@ class Api:
             headers={**self._csrf, "Idempotency-Key": chave},
         )
 
+    async def criar_proposta_com_recebimento(
+        self,
+        consultant_id: int,
+        *,
+        chave: str,
+        valor: str = "400.00",
+        conteudo: bytes = PDF,
+        content_type: str = "application/pdf",
+    ) -> Response:
+        return await self._cliente.post(
+            "/api/v1/proposals/with-receipt",
+            data={
+                "consultant_id": str(consultant_id),
+                "proposal_business_date": "2026-08-12",
+                "customer_name": "Cliente Atômico",
+                "customer_document": CPF_CLIENTE,
+                "operation_amount": "10000.00",
+                "tps_percentage": "10",
+                "amount": valor,
+                "payment_business_date": "2026-08-12",
+                "payment_method": "PIX",
+                "receiving_account_id": str(self.conta_padrao),
+            },
+            files={"proof": ("comprovante.pdf", conteudo, content_type)},
+            headers={**self._csrf, "Idempotency-Key": chave},
+        )
+
 
 @pytest.fixture
 async def admin(cliente: AsyncClient, admin_semeado: dict[str, str]) -> Api:
@@ -240,15 +267,93 @@ async def _rascunho(
 
 
 async def _enviar(api: Api, proposal_id: int, version: int) -> int:
-    """Anexa o comprovante exigido e envia para aprovação. Devolve a versão."""
-    anexo = await api.anexar(f"/api/v1/proposals/{proposal_id}/attachments")
-    assert anexo.status_code == 201, anexo.text
+    """Envia uma proposta que já possui recebimento declarado. Devolve a versão."""
     enviada = await api.post(f"/api/v1/proposals/{proposal_id}/submission", {"version": version})
     assert enviada.status_code == 200, enviada.text
     return int(enviada.json()["version"])
 
 
 # ---------- declaração pela Finalização ----------
+
+
+async def test_lider_nao_pode_ser_indicado_como_vendedor(
+    admin: Api,
+    empresa: int,
+    novo_cliente: Callable[[], AsyncClient],
+    finalizacao: dict[str, Any],
+) -> None:
+    lider = await admin.post(
+        "/api/v1/collaborators",
+        {
+            "company_id": empresa,
+            "unit_id": None,
+            "full_name": "Líder sem Venda",
+            "document": "168.995.350-09",
+            "tax_regime": "MEI",
+            "roles": [
+                {"role": "CONSULTOR", "valid_from": "2026-01-01"},
+                {"role": "LIDER", "valid_from": "2026-01-01"},
+            ],
+        },
+    )
+    assert lider.status_code == 201, lider.text
+
+    async with _sessao(
+        novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
+    ) as api:
+        proposta = await api.post(
+            "/api/v1/proposals",
+            {
+                "consultant_id": lider.json()["id"],
+                "business_date": "2026-08-12",
+                "customer_name": "Cliente do líder",
+                "customer_document": CPF_CLIENTE,
+                "operation_amount": "10000.00",
+                "tps_percentage": "10",
+            },
+        )
+
+    assert proposta.status_code == 422
+    assert "liderança não realiza venda" in proposta.json()["detail"].lower()
+
+
+async def test_cadastro_com_pagamento_persiste_os_dois_no_mesmo_commit(
+    novo_cliente: Callable[[], AsyncClient], consultor: int, finalizacao: dict[str, Any]
+) -> None:
+    async with _sessao(
+        novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
+    ) as api:
+        resposta = await api.criar_proposta_com_recebimento(
+            consultor, chave="cadastro-atomico-sucesso"
+        )
+
+    assert resposta.status_code == 201, resposta.text
+    assert resposta.json()["id"] > 0
+    assert resposta.json()["receipt_id"] > 0
+    assert await _contar("proposals") == 1
+    assert await _contar("receipts") == 1
+
+
+async def test_comprovante_invalido_reverte_tambem_a_proposta(
+    novo_cliente: Callable[[], AsyncClient], consultor: int, finalizacao: dict[str, Any]
+) -> None:
+    async with _sessao(
+        novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
+    ) as api:
+        auditorias_antes = await _contar("audit_events")
+        eventos_antes = await _contar("outbox_events")
+        resposta = await api.criar_proposta_com_recebimento(
+            consultor,
+            chave="cadastro-atomico-rollback",
+            valor="400.00",
+            conteudo=b"arquivo que nao e PDF",
+        )
+
+    assert resposta.status_code == 422
+    assert await _contar("proposals") == 0
+    assert await _contar("receipts") == 0
+    assert await _contar("audit_events") == auditorias_antes
+    assert await _contar("outbox_events") == eventos_antes
 
 
 async def test_finalizacao_declara_valor_recebido_na_proposta(
@@ -318,7 +423,7 @@ async def test_consultor_nao_declara_recebimento(
 async def test_operacional_sem_funcao_de_finalizacao_nao_declara(
     admin: Api, novo_cliente: Callable[[], AsyncClient], consultor: int, empresa: int
 ) -> None:
-    """A permissão abre a porta; a função operacional decide quem entra."""
+    """BKO pode consultar recebimentos, mas não recebe a capacidade de lançar."""
     conta = await admin.post(
         "/api/v1/users",
         {
@@ -341,10 +446,13 @@ async def test_operacional_sem_funcao_de_finalizacao_nao_declara(
     async with _sessao(
         novo_cliente, "bko@rfbalance.local", conta.json()["temporary_password"]
     ) as api:
+        usuario = await api.get("/api/v1/auth/me")
         recusado = await api.declarar(proposta["id"], chave="chave-do-bko")
 
+    assert "receipts:read" in usuario.json()["permissions"]
+    assert "receipts:write" not in usuario.json()["permissions"]
     assert recusado.status_code == 403
-    assert recusado.json()["type"].endswith("receipt-launcher-not-allowed")
+    assert recusado.json()["type"].endswith("permission-denied")
 
 
 async def test_proposta_enviada_congela_os_recebimentos(
@@ -395,8 +503,11 @@ async def test_data_futura_nao_e_aceita(
     assert recusado.json()["type"].endswith("invalid-receipt")
 
 
-async def test_declaracoes_nao_ultrapassam_tolerancia_de_sobrepagamento(
-    novo_cliente: Callable[[], AsyncClient], consultor: int, finalizacao: dict[str, Any]
+async def test_sobrepagamento_sem_limite_pode_ser_aprovado(
+    novo_cliente: Callable[[], AsyncClient],
+    consultor: int,
+    finalizacao: dict[str, Any],
+    financeiro: dict[str, Any],
 ) -> None:
     async with _sessao(
         novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
@@ -405,10 +516,26 @@ async def test_declaracoes_nao_ultrapassam_tolerancia_de_sobrepagamento(
         assert (
             await api.declarar(proposta["id"], chave="chave-limite-1", valor="1000.00")
         ).status_code == 201
-        excedente = await api.declarar(proposta["id"], chave="chave-limite-2", valor="100.01")
+        excedente = await api.declarar(
+            proposta["id"], chave="chave-limite-2", valor="50000.00"
+        )
+        assert excedente.status_code == 201, excedente.text
+        versao = await _enviar(api, proposta["id"], proposta["version"])
 
-    assert excedente.status_code == 422
-    assert excedente.json()["type"].endswith("invalid-receipt")
+    async with _sessao(
+        novo_cliente, "fin@rfbalance.local", financeiro["temporary_password"]
+    ) as api:
+        aprovada = await api.post(
+            f"/api/v1/proposals/{proposta['id']}/decision",
+            {"version": versao, "decision": "APROVAR"},
+        )
+        assert aprovada.status_code == 200, aprovada.text
+        detalhe = (await api.get(f"/api/v1/proposals/{proposta['id']}")).json()
+
+    assert detalhe["approval_status"] == "APPROVED"
+    assert detalhe["status"] == "PAID"
+    assert detalhe["overpaid"] is True
+    assert detalhe["paid_amount"] == "51000.00"
 
 
 async def test_remocao_corrige_o_que_foi_digitado_errado(
@@ -538,6 +665,79 @@ async def test_aprovacao_da_proposta_reconhece_o_valor_declarado(
             assert snapshot.outputs["recognized_production"] == "4000.00"
     finally:
         await engine.dispose()
+
+
+async def test_financeiro_nao_aprova_proposta_com_recebimento_que_declarou(
+    novo_cliente: Callable[[], AsyncClient],
+    consultor: int,
+    finalizacao: dict[str, Any],
+    financeiro: dict[str, Any],
+) -> None:
+    async with _sessao(
+        novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
+    ) as api:
+        proposta = await _rascunho(api, consultor)
+
+    async with _sessao(
+        novo_cliente, "fin@rfbalance.local", financeiro["temporary_password"]
+    ) as api:
+        declarado = await api.declarar(
+            proposta["id"], chave="financeiro-declarou-na-proposta", valor="400.00"
+        )
+        assert declarado.status_code == 201, declarado.text
+
+    async with _sessao(
+        novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
+    ) as api:
+        versao = await _enviar(api, proposta["id"], proposta["version"])
+
+    async with _sessao(
+        novo_cliente, "fin@rfbalance.local", financeiro["temporary_password"]
+    ) as api:
+        decisao = await api.post(
+            f"/api/v1/proposals/{proposta['id']}/decision",
+            {"version": versao, "decision": "APROVAR"},
+        )
+
+    assert decisao.status_code == 409
+    assert decisao.json()["type"].endswith("auto-aprovacao-de-proposta")
+
+
+async def test_operacional_nao_enxerga_comprovante_registrado_por_outra_pessoa(
+    admin: Api,
+    novo_cliente: Callable[[], AsyncClient],
+    consultor: int,
+    finalizacao: dict[str, Any],
+) -> None:
+    async with _sessao(
+        novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
+    ) as api:
+        proposta = await _rascunho(api, consultor)
+        receipt = (
+            await api.declarar(proposta["id"], chave="comprovante-fora-do-escopo")
+        ).json()
+
+    intruso = await admin.post(
+        "/api/v1/users",
+        {
+            "email": "operacional-sem-escopo@rfbalance.local",
+            "full_name": "Operacional sem Escopo",
+            "roles": ["OPERACIONAL"],
+        },
+    )
+    assert intruso.status_code == 201, intruso.text
+
+    async with _sessao(
+        novo_cliente,
+        "operacional-sem-escopo@rfbalance.local",
+        intruso.json()["temporary_password"],
+    ) as api:
+        listed = await api.get("/api/v1/receipts")
+        proof = await api.get(f"/api/v1/receipts/{receipt['id']}/proof")
+
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["items"] == []
+    assert proof.status_code == 404
 
 
 async def test_escalonado_rateia_faixas_e_recalcula_o_mes_no_estorno(
@@ -950,6 +1150,7 @@ async def test_dois_reconhecimentos_simultaneos_preservam_a_soma(
         novo_cliente, "final@rfbalance.local", finalizacao["temporary_password"]
     ) as api:
         proposta = await _rascunho(api, consultor)
+        await api.declarar(proposta["id"], chave="entrada-antes-da-concorrencia", valor="100.00")
         versao = await _enviar(api, proposta["id"], proposta["version"])
 
     async with _sessao(
@@ -978,8 +1179,8 @@ async def test_dois_reconhecimentos_simultaneos_preservam_a_soma(
         detalhe = await api_um.get(f"/api/v1/proposals/{proposta['id']}")
 
     assert [resposta.status_code for resposta in respostas] == [200, 200]
-    assert detalhe.json()["paid_amount"] == "900.00"
-    assert detalhe.json()["outstanding_amount"] == "100.00"
+    assert detalhe.json()["paid_amount"] == "1000.00"
+    assert detalhe.json()["outstanding_amount"] == "0.00"
 
 
 async def test_falha_na_outbox_reverte_recebimento_e_auditoria(
@@ -1372,9 +1573,16 @@ async def test_download_do_comprovante_devolve_o_arquivo(
         recebimento = (await api.declarar(proposta["id"], chave="chave-comprovante")).json()
 
         baixado = await api.get(f"/api/v1/receipts/{recebimento['id']}/proof")
+        visualizado = await api.get(
+            f"/api/v1/receipts/{recebimento['id']}/proof", preview=True
+        )
 
     assert baixado.status_code == 200
     assert baixado.content == PDF
+    assert baixado.headers["content-disposition"].startswith("attachment;")
+    assert visualizado.status_code == 200
+    assert visualizado.content == PDF
+    assert visualizado.headers["content-disposition"].startswith("inline;")
 
 
 async def test_declaracao_e_reconhecimento_geram_trilha(
@@ -1437,7 +1645,7 @@ async def _contar(tabela: str) -> int:
     from app.platform.config.settings import get_settings
     from app.platform.db.engine import criar_engine
 
-    assert tabela in {"receipts", "audit_events", "outbox_events"}
+    assert tabela in {"proposals", "receipts", "audit_events", "outbox_events"}
     engine = criar_engine(get_settings().database)
     try:
         async with engine.connect() as conexao:

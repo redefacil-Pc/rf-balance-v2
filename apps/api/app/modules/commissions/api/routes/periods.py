@@ -75,9 +75,25 @@ async def reopen_period(
     manager: Annotated[CommissionPeriodManager, Depends(get_period_manager)],
 ) -> CommissionPeriodResponse:
     return _response(
-        await manager.reopen(
+        await manager.request_reopen(
             period_id=period_id,
             reason=body.reason,
+            actor=actor.id,
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+    )
+
+
+@router.post("/{period_id}/reopening-approval", response_model=CommissionPeriodResponse)
+async def approve_reopening(
+    period_id: int,
+    request: Request,
+    actor: Annotated[User, Depends(require_permission("periods:reopen"))],
+    manager: Annotated[CommissionPeriodManager, Depends(get_period_manager)],
+) -> CommissionPeriodResponse:
+    return _response(
+        await manager.approve_reopen(
+            period_id=period_id,
             actor=actor.id,
             correlation_id=getattr(request.state, "correlation_id", None),
         )

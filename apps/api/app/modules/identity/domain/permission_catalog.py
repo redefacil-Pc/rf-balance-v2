@@ -67,6 +67,7 @@ _FINANCEIRO = (
     "commission_rules:read",
     "periods:read",
     "periods:close",
+    "periods:reopen",
     "settlements:read",
     "settlements:write",
     "settlements:approve",
@@ -82,11 +83,9 @@ _OPERACIONAL = (
     "collaborators:read",
     "proposals:read",
     "proposals:write",
-    # a Finalização lança a proposta **com os valores recebidos**: declarar o
-    # recebimento é parte do cadastro, não uma etapa posterior do Financeiro.
-    # Quem confere no extrato e reconhece o dinheiro é o Financeiro, ao aprovar.
+    # Todo Operacional pode consultar; `receipts:write` é acrescentada
+    # contextualmente apenas a quem exerce FINALIZACAO hoje.
     "receipts:read",
-    "receipts:write",
     "dashboard:read",
 )
 
@@ -96,14 +95,11 @@ _LIDERANCA = (
     "teams:write",
     "proposals:read",
     "receipts:read",
-    "reports:read",
-    "reports:export",
     "dashboard:read",
 )
 
 _CONSULTOR = (
     "proposals:read",
-    "reports:read",
     "dashboard:read",
 )
 

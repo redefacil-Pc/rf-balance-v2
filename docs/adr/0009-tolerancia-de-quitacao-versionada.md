@@ -1,6 +1,6 @@
 # 0009 — Tolerância de quitação como política versionada
 
-- **Status:** proposto — o **mecanismo** está implementado; os **limites** aguardam confirmação do financeiro
+- **Status:** aceito — mecanismo e tratamento do excedente confirmados em 2026-08-21
 - **Data:** 2026-08-12
 - **Decisores:** Orlean
 - **Fase afetada:** F2 (proposta e status), consumido pela F3 (recebimentos) e F4 (comissão)
@@ -29,7 +29,7 @@ A classificação tem **três** resultados, não dois:
 | entre −`falta_tolerada` e +`excedente_tolerado` | `QUITADA` | `PAID` |
 | acima de +`excedente_tolerado` | `SOBREPAGAMENTO` | `PAID`, com sinalização |
 
-Sobrepagamento **quita** a proposta — o dinheiro entrou — mas fica marcado para decisão do financeiro, e a API o expõe (`overpaid`). O que fazer com o excedente (devolver, abater, provisionar) continua em aberto e será decidido em ADR próprio.
+Sobrepagamento **quita** a proposta — o dinheiro entrou — e fica marcado para decisão do Financeiro. Conforme ADR 0016, não há limite de negócio para declarar o excedente: ele pode ser aprovado, mas não libera produção ou comissão acima de 100% da base elegível.
 
 Decorrência: a falta tolerada **não** entra no "a receber". `outstanding_amount` é zero em proposta quitada, senão a carteira do dashboard acumularia centavos de propostas que ninguém vai cobrar.
 

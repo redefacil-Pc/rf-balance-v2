@@ -28,6 +28,7 @@ def get_receipt_service(request: Request, uow: Uow) -> ReceiptService:
         storage=ObjectAttachmentStorage(
             request.app.state.storage,
             request.app.state.settings.storage.object_storage_bucket,
+            request.app.state.settings.storage.object_storage_prefix,
         ),
         audit=SqlAuditRecorder(uow.session, request.app.state.clock),
         outbox=outbox,

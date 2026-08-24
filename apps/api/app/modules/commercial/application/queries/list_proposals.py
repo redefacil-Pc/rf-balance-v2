@@ -109,6 +109,9 @@ class ListProposalsHandler:
 
         return Pagina(itens=itens, proximo_cursor=proximo)
 
+    async def count(self, filtro: FiltroDePropostas) -> int:
+        return await self._propostas.contar(filtro)
+
     async def _nomes(self, ids: set[int]) -> dict[int, str]:
         if not ids:
             return {}

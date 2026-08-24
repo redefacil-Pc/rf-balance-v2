@@ -81,17 +81,17 @@ docker compose -f infrastructure/compose/docker-compose.yml --env-file .env exec
 O comando demonstra:
 
 - colaborador isolado **Teste BKO Carryover**, sem alterar fechamentos reais;
-- BKO manual de R$ 200,00 na semana de 31/07 a 06/08;
+- BKO manual de R$ 200,00 na semana de duas competências atrás;
 - pagamento de R$ 120,00 e adiamento de R$ 80,00 nesse fechamento;
 - fechamento e congelamento da semana anterior;
-- BKO atual de R$ 300,00 com carryover de R$ 80,00 na semana de 14/08 a 20/08;
+- BKO atual de R$ 300,00 com carryover de R$ 80,00 nos sete dias que terminam hoje;
 - bônus de R$ 50,00, desconto de R$ 20,00, adiamento de R$ 100,00 e
   pagamento parcial de R$ 200,00, restando R$ 110,00;
 - Consultor Escalonado com pagamento integral de R$ 2.800,00;
 - Finalização CLT isolada com bônus manual de R$ 300,00;
 - período atual aberto para continuar a homologação.
 
-Na tela **Fechamentos de comissão**, selecione 14/08/2026 a 20/08/2026. Os
+Na tela **Fechamentos de comissão**, selecione o período informado pelo comando. Os
 cartões mostram a soma de bruto, acréscimos, valores retidos, pago e a pagar. A
 tabela preserva a composição por beneficiário.
 
@@ -119,7 +119,7 @@ make seed-leadership-demo
 ```
 
 O comando usa os casos de uso oficiais, pode ser repetido sem duplicar dados e
-forma estas equipes vigentes desde 17/08/2026:
+forma estas equipes vigentes na data da execução:
 
 - **Bruno Lider / Comercial:** Carla Consultora e Teste Consultor Escalonado;
 - **Elena Lider MEI / MEI Geral:** Carla Consultora e Teste Consultor Escalonado;
@@ -138,6 +138,10 @@ As ferramentas abaixo continuam disponíveis para criar ou transferir vínculos,
 consultar o histórico individual e encerrar uma vigência.
 Em **Fechamentos** e **Relatório financeiro**, os três beneficiários aparecem
 juntos no setor **Lideranças**, com detalhamento até proposta e recebimento.
+
+As massas de fechamento e liderança devem ser validadas em bancos de teste
+separados, ou com uma limpeza entre elas. As duas exercitam intencionalmente o
+período corrente e poderiam alterar os totais uma da outra.
 
 ## Dashboard, auditoria e exportações
 

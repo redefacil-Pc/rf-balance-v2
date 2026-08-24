@@ -103,6 +103,22 @@ class ProposalDetailResponse(ProposalResponse):
     settled_at: datetime | None
     cancelled_at: datetime | None
     cancellation_reason: str | None
+    timeline: list[ProposalTimelineEventResponse]
+
+
+class ProposalTimelineEventResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    action: str
+    occurred_at: datetime
+    actor_name: str
+    payload: dict[str, object]
+
+
+class PendingProposalCountResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    count: int
 
 
 class ProposalWriteResponse(BaseModel):
@@ -115,6 +131,12 @@ class ProposalWriteResponse(BaseModel):
     company_commission_amount: str
     outstanding_amount: str
     version: int
+
+
+class ProposalWithReceiptWriteResponse(ProposalWriteResponse):
+    """Criação atômica: identifica também o recebimento persistido."""
+
+    receipt_id: int
 
 
 class ProposalCancelResponse(BaseModel):

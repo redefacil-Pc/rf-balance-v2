@@ -30,3 +30,7 @@ class ReceiptRecognizer(Protocol):
         """Reconhece os recebimentos declarados e devolve o total que passa a
         valer para a proposta — já descontando o que foi estornado."""
         ...
+
+    async def foi_declarado_por(self, proposal_id: int, actor: int) -> bool:
+        """Indica se o aprovador participou da declaração financeira da proposta."""
+        ...

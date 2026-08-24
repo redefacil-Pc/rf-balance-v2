@@ -10,7 +10,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 
+from app.modules.audit.application.queries.list_audit_events import (
+    AuditFilters,
+    ListAuditEventsQuery,
+)
 from app.modules.commercial.application.ports.proposal_scope import EscopoDePropostas
 from app.modules.commercial.domain.errors import PropostaNaoEncontradaError
 from app.modules.commercial.domain.policies import settlement_tolerance_policy as tolerancia
@@ -55,7 +60,16 @@ class DetalheDaProposta:
     settled_at: datetime | None
     cancelled_at: datetime | None
     cancellation_reason: str | None
+    timeline: tuple[EventoDaProposta, ...]
     version: int
+
+
+@dataclass(frozen=True, slots=True)
+class EventoDaProposta:
+    action: str
+    occurred_at: datetime
+    actor_name: str
+    payload: dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,10 +88,12 @@ class GetProposalHandler:
         propostas: SqlProposalRepository,
         colaboradores: SqlCollaboratorRepository,
         cipher: PiiCipher,
+        audit: ListAuditEventsQuery,
     ) -> None:
         self._propostas = propostas
         self._colaboradores = colaboradores
         self._cipher = cipher
+        self._audit = audit
 
     async def execute(self, query: GetProposal) -> DetalheDaProposta:
         modelo = await self._propostas.obter_linha(query.proposal_id, escopo=query.escopo)
@@ -86,6 +102,16 @@ class GetProposalHandler:
 
         nomes = await self._colaboradores.nomes_por_id(
             tuple(sorted(ids_de_colaboradores([modelo])))
+        )
+        eventos = await self._audit.execute(
+            filters=AuditFilters(
+                module="commercial",
+                action="proposal.",
+                aggregate_type="proposal",
+                aggregate_id=str(modelo.id),
+            ),
+            limit=100,
+            cursor=None,
         )
 
         return DetalheDaProposta(
@@ -115,6 +141,15 @@ class GetProposalHandler:
             settled_at=modelo.settled_at,
             cancelled_at=modelo.cancelled_at,
             cancellation_reason=modelo.cancellation_reason,
+            timeline=tuple(
+                EventoDaProposta(
+                    action=evento.action,
+                    occurred_at=evento.occurred_at,
+                    actor_name=evento.actor_name,
+                    payload=evento.payload,
+                )
+                for evento in reversed(eventos.itens)
+            ),
             version=modelo.version,
         )
 

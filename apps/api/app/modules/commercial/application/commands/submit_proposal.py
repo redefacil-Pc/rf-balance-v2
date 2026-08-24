@@ -1,7 +1,8 @@
 """Caso de uso: enviar a proposta para aprovação do financeiro.
 
-Sem comprovante não envia — a regra mora na entidade; aqui só se conta quantos
-anexos existem. O controle otimista por `version` vale como em toda escrita.
+Somente um recebimento declarado, com o comprovante que lhe pertence, satisfaz
+o requisito de envio. Um anexo solto da proposta não informa qual valor o
+Financeiro deve conferir e, portanto, nunca pode substituí-lo.
 """
 
 from __future__ import annotations
@@ -11,9 +12,6 @@ from dataclasses import dataclass
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
 from app.modules.commercial.application.ports.receipt_recognizer import ReceiptRecognizer
 from app.modules.commercial.domain.errors import PropostaNaoEncontradaError
-from app.modules.commercial.infrastructure.repositories.sql_proposal_attachment_repository import (
-    SqlProposalAttachmentRepository,
-)
 from app.modules.commercial.infrastructure.repositories.sql_proposal_repository import (
     SqlProposalRepository,
 )
@@ -44,14 +42,12 @@ class SubmitProposalHandler:
         *,
         uow: UnitOfWork,
         propostas: SqlProposalRepository,
-        anexos: SqlProposalAttachmentRepository,
         recebimentos: ReceiptRecognizer,
         audit: AuditRecorder,
         clock: Clock,
     ) -> None:
         self._uow = uow
         self._propostas = propostas
-        self._anexos = anexos
         self._recebimentos = recebimentos
         self._audit = audit
         self._clock = clock
@@ -61,10 +57,8 @@ class SubmitProposalHandler:
         if proposta is None:
             raise PropostaNaoEncontradaError(f"Proposta {cmd.proposal_id} não encontrada.")
 
-        anexos = await self._anexos.contar(cmd.proposal_id)
         recebimentos = await self._recebimentos.contar_declarados(cmd.proposal_id)
-        comprovantes = anexos + recebimentos
-        proposta.enviar_para_aprovacao(quantidade_de_comprovantes=comprovantes)
+        proposta.enviar_para_aprovacao(quantidade_de_recebimentos=recebimentos)
 
         await self._propostas.salvar(
             proposta,
@@ -80,7 +74,7 @@ class SubmitProposalHandler:
             aggregate_type="proposal",
             aggregate_id=str(cmd.proposal_id),
             correlation_id=cmd.correlation_id,
-            payload={"attachments": anexos, "receipt_proofs": recebimentos},
+            payload={"receipt_proofs": recebimentos},
         )
         await self._uow.commit()
 

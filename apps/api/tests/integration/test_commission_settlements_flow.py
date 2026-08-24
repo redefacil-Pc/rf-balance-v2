@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -30,11 +31,21 @@ async def test_bko_fechamento_ajustes_adiamento_e_pagamento(
         headers=csrf,
     )
     assert company.status_code == 201, company.text
+    unit = await cliente.post(
+        "/api/v1/units",
+        json={
+            "company_id": company.json()["id"],
+            "code": "FIN",
+            "name": "Unidade Financeira",
+        },
+        headers=csrf,
+    )
+    assert unit.status_code == 201, unit.text
     bko = await cliente.post(
         "/api/v1/collaborators",
         json={
             "company_id": company.json()["id"],
-            "unit_id": None,
+            "unit_id": unit.json()["id"],
             "full_name": "BKO de Teste",
             "document": "168.995.350-09",
             "tax_regime": "MEI",
@@ -112,6 +123,22 @@ async def test_bko_fechamento_ajustes_adiamento_e_pagamento(
         if item["beneficiary_id"] == bko.json()["id"]
     )
     assert beneficiary["manual_amount"] == "100.00"
+    unit_report = await cliente.get(
+        "/api/v1/commission-financial-report",
+        params={**period, "unit_id": unit.json()["id"]},
+    )
+    assert unit_report.status_code == 200, unit_report.text
+    assert unit_report.json()["summary"]["bko_commissions"] == "100.00"
+    assert [item["beneficiary_id"] for item in unit_report.json()["beneficiaries"]] == [
+        bko.json()["id"]
+    ]
+    empty_unit_report = await cliente.get(
+        "/api/v1/commission-financial-report",
+        params={**period, "unit_id": unit.json()["id"] + 999_999},
+    )
+    assert empty_unit_report.status_code == 200, empty_unit_report.text
+    assert empty_unit_report.json()["summary"]["total_commissions"] == "0.00"
+    assert empty_unit_report.json()["beneficiaries"] == []
     detail = await cliente.get(
         f"/api/v1/commission-financial-report/beneficiaries/{bko.json()['id']}",
         params=period,
@@ -271,9 +298,21 @@ async def test_finalizacao_aceita_bonus_manual_e_exibe_separado_do_bruto(
 
 
 async def test_reabertura_de_periodo_exige_motivo_e_para_no_fechamento_pago(
-    cliente: AsyncClient, admin_semeado: dict[str, str]
+    cliente: AsyncClient,
+    novo_cliente: Callable[[], AsyncClient],
+    admin_semeado: dict[str, str],
 ) -> None:
     csrf = await _login_admin(cliente, admin_semeado)
+    second_approver = await cliente.post(
+        "/api/v1/users",
+        json={
+            "email": "segunda-aprovacao@rfbalance.local",
+            "full_name": "Segunda Aprovação Financeira",
+            "roles": ["FINANCEIRO"],
+        },
+        headers=csrf,
+    )
+    assert second_approver.status_code == 201, second_approver.text
     company = await cliente.post(
         "/api/v1/companies",
         json={"legal_name": "Empresa Reabertura", "trade_name": "Reabertura"},
@@ -320,18 +359,43 @@ async def test_reabertura_de_periodo_exige_motivo_e_para_no_fechamento_pago(
     )
     assert sem_motivo.status_code == 422
 
-    reopened = await cliente.post(
+    requested = await cliente.post(
         f"/api/v1/commission-periods/{period_id}/reopening",
         json={"reason": "Recebimento conferido fora do prazo pelo Financeiro"},
         headers=csrf,
     )
+    assert requested.status_code == 200, requested.text
+    assert requested.json()["status"] == "REOPENING_PENDING"
+    assert requested.json()["reopen_requested_at"] is not None
+    assert requested.json()["reopen_reason"] == (
+        "Recebimento conferido fora do prazo pelo Financeiro"
+    )
+    assert requested.json()["closed_at"] is not None
+
+    same_person = await cliente.post(
+        f"/api/v1/commission-periods/{period_id}/reopening-approval",
+        headers=csrf,
+    )
+    assert same_person.status_code == 409
+
+    async with novo_cliente() as second_client:
+        login = await second_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "segunda-aprovacao@rfbalance.local",
+                "password": second_approver.json()["temporary_password"],
+            },
+        )
+        assert login.status_code == 200, login.text
+        second_csrf = {CSRF_HEADER: second_client.cookies[CSRF_COOKIE]}
+        reopened = await second_client.post(
+            f"/api/v1/commission-periods/{period_id}/reopening-approval",
+            headers=second_csrf,
+        )
     assert reopened.status_code == 200, reopened.text
     assert reopened.json()["status"] == "OPEN"
     assert reopened.json()["reopened_at"] is not None
-    assert reopened.json()["reopen_reason"] == (
-        "Recebimento conferido fora do prazo pelo Financeiro"
-    )
-    assert reopened.json()["closed_at"] is not None
+    assert reopened.json()["reopened_by"] != reopened.json()["reopen_requested_by"]
 
     # reaberto, o período volta a aceitar geração de fechamento
     manual = await cliente.post(

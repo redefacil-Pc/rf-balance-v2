@@ -2,7 +2,7 @@ import { Alert, Badge, Button, Card, Group, Modal, Stack, Table, Text, TextInput
 import { useState } from 'react';
 
 import { useAuth } from '@/app/providers/AuthProvider';
-import { useCloseCommissionPeriod, useCommissionPeriods, useCreateCommissionPeriod, useReopenCommissionPeriod } from '@/features/periods/queries/useCommissionPeriods';
+import { useApproveCommissionPeriodReopening, useCloseCommissionPeriod, useCommissionPeriods, useCreateCommissionPeriod, useReopenCommissionPeriod } from '@/features/periods/queries/useCommissionPeriods';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
 import type { CommissionPeriod } from '@/shared/types/commissions';
 
@@ -20,6 +20,7 @@ export function PeriodsPage() {
   const { pode } = useAuth(); const query = useCommissionPeriods();
   const create = useCreateCommissionPeriod(); const close = useCloseCommissionPeriod();
   const reopen = useReopenCommissionPeriod();
+  const approveReopening = useApproveCommissionPeriodReopening();
   const initial = defaults();
   const [creating, setCreating] = useState(false); const [closing, setClosing] = useState<CommissionPeriod | null>(null);
   const [reopening, setReopening] = useState<CommissionPeriod | null>(null);
@@ -37,10 +38,11 @@ export function PeriodsPage() {
       vazio={(query.data?.length ?? 0) === 0} mensagemVazio="Nenhum período cadastrado.">
       <Table striped verticalSpacing="sm"><Table.Thead><Table.Tr><Table.Th>Período</Table.Th><Table.Th>Cutoff</Table.Th><Table.Th>Status</Table.Th><Table.Th>Motivo</Table.Th><Table.Th>Ações</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{query.data?.map((item) => <Table.Tr key={item.id}><Table.Td>{item.period_start.split('-').reverse().join('/')} a {item.period_end.split('-').reverse().join('/')}</Table.Td>
-          <Table.Td>{new Date(item.cutoff_at).toLocaleString('pt-BR')}</Table.Td><Table.Td><Badge color={item.status === 'OPEN' ? 'green' : 'gray'}>{item.status === 'OPEN' ? 'Aberto' : 'Fechado'}</Badge></Table.Td>
+          <Table.Td>{new Date(item.cutoff_at).toLocaleString('pt-BR')}</Table.Td><Table.Td><Badge color={item.status === 'OPEN' ? 'green' : item.status === 'REOPENING_PENDING' ? 'orange' : 'gray'}>{item.status === 'OPEN' ? 'Aberto' : item.status === 'REOPENING_PENDING' ? 'Aguardando 2ª aprovação' : 'Fechado'}</Badge></Table.Td>
           <Table.Td>{item.reopen_reason ?? item.reason}</Table.Td><Table.Td><Group gap="xs">
             {item.status === 'OPEN' && pode('periods:close') && <Button size="xs" variant="default" onClick={() => { setClosing(item); setReason('Conferência concluída'); }}>Fechar período</Button>}
             {item.status === 'CLOSED' && pode('periods:reopen') && <Button size="xs" variant="default" onClick={() => { setReopening(item); setReason(''); }}>Reabrir período</Button>}
+            {item.status === 'REOPENING_PENDING' && pode('periods:reopen') && <Button size="xs" color="orange" loading={approveReopening.isPending} onClick={() => approveReopening.mutate({ id: item.id })}>Dar 2ª aprovação</Button>}
             {item.reopened_at !== null && <Badge color="orange" variant="light">Reaberto</Badge>}</Group></Table.Td></Table.Tr>)}</Table.Tbody></Table>
     </EstadoDaLista></Card>
     <Modal opened={creating} onClose={() => setCreating(false)} title="Novo período" centered><Stack>
@@ -58,10 +60,10 @@ export function PeriodsPage() {
       <Group justify="flex-end"><Button variant="default" onClick={() => setClosing(null)}>Cancelar</Button><Button color="red" onClick={() => void confirmClose()} loading={close.isPending}>Confirmar fechamento</Button></Group>
     </Stack></Modal>
     <Modal opened={reopening !== null} onClose={() => setReopening(null)} title="Reabrir período" centered><Stack>
-      <Alert color="orange">Reabertura é ato excepcional e fica registrada na auditoria com o seu nome. Fechamento já pago não pode ser reaberto: nesse caso, corrija por compensação no período atual.</Alert>
+      <Alert color="orange">Esta é a primeira aprovação. Outra pessoa com permissão deverá dar a segunda aprovação para efetivar a reabertura. Fechamento já pago não pode ser reaberto.</Alert>
       <TextInput label="Motivo" description="Descreva o que justifica a reabertura (mínimo de 10 caracteres)." value={reason} onChange={(event) => setReason(event.currentTarget.value)} />
       {reopen.error && <Text size="sm" c="red">{reopen.error.problem.detail}</Text>}
-      <Group justify="flex-end"><Button variant="default" onClick={() => setReopening(null)}>Cancelar</Button><Button color="orange" disabled={reason.trim().length < 10} onClick={() => void confirmReopen()} loading={reopen.isPending}>Confirmar reabertura</Button></Group>
+      <Group justify="flex-end"><Button variant="default" onClick={() => setReopening(null)}>Cancelar</Button><Button color="orange" disabled={reason.trim().length < 10} onClick={() => void confirmReopen()} loading={reopen.isPending}>Solicitar reabertura</Button></Group>
     </Stack></Modal>
   </Stack>;
 }

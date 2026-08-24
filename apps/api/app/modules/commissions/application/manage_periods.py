@@ -140,7 +140,7 @@ class CommissionPeriodManager:
         await self._session.refresh(model)
         return model
 
-    async def reopen(
+    async def request_reopen(
         self,
         *,
         period_id: int,
@@ -170,13 +170,13 @@ class CommissionPeriodManager:
             raise CommissionRuleConflictError(
                 "O período já tem fechamento pago; corrija por compensação no período atual."
             )
-        model.status = "OPEN"
-        model.reopened_at = self._clock.now()
-        model.reopened_by = actor
+        model.status = "REOPENING_PENDING"
+        model.reopen_requested_at = self._clock.now()
+        model.reopen_requested_by = actor
         model.reopen_reason = reason.strip()
         self._audit.registrar(
             module="commissions",
-            action="commission.period_reopened",
+            action="commission.period_reopening_requested",
             actor_user_id=actor,
             aggregate_type="commission_period",
             aggregate_id=str(model.id),
@@ -188,6 +188,57 @@ class CommissionPeriodManager:
             },
         )
         self._outbox.registrar(
+            event_type="commission.period_reopening_requested.v1",
+            aggregate_type="commission_period",
+            aggregate_id=str(model.id),
+            correlation_id=correlation_id,
+            payload={
+                "period_start": model.period_start.isoformat(),
+                "period_end": model.period_end.isoformat(),
+            },
+        )
+        await self._uow.commit()
+        await self._session.refresh(model)
+        return model
+
+    async def approve_reopen(
+        self,
+        *,
+        period_id: int,
+        actor: int,
+        correlation_id: str | None,
+    ) -> CommissionPeriodModel:
+        model = await self._session.scalar(
+            select(CommissionPeriodModel)
+            .where(CommissionPeriodModel.id == period_id)
+            .with_for_update()
+        )
+        if model is None:
+            raise CommissionRuleConfigurationError("Período não encontrado.")
+        if model.status != "REOPENING_PENDING":
+            raise CommissionRuleConflictError("Este período não aguarda a segunda aprovação.")
+        if model.reopen_requested_by == actor:
+            raise CommissionRuleConflictError(
+                "A segunda aprovação deve ser realizada por outra pessoa."
+            )
+
+        model.status = "OPEN"
+        model.reopened_at = self._clock.now()
+        model.reopened_by = actor
+        self._audit.registrar(
+            module="commissions",
+            action="commission.period_reopened",
+            actor_user_id=actor,
+            aggregate_type="commission_period",
+            aggregate_id=str(model.id),
+            correlation_id=correlation_id,
+            payload={
+                "reason": model.reopen_reason,
+                "first_approver": model.reopen_requested_by,
+                "second_approver": actor,
+            },
+        )
+        self._outbox.registrar(
             event_type="commission.period_reopened.v1",
             aggregate_type="commission_period",
             aggregate_id=str(model.id),
@@ -195,6 +246,8 @@ class CommissionPeriodManager:
             payload={
                 "period_start": model.period_start.isoformat(),
                 "period_end": model.period_end.isoformat(),
+                "first_approver": model.reopen_requested_by,
+                "second_approver": actor,
             },
         )
         await self._uow.commit()

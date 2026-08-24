@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 
 from app.modules.audit.application.ports.audit_recorder import AuditRecorder
@@ -29,6 +30,7 @@ from app.modules.commercial.infrastructure.repositories.sql_proposal_repository 
     SqlProposalRepository,
 )
 from app.platform.db.session.unit_of_work import UnitOfWork
+from app.platform.http.uploads import matches_declared_content_type
 
 MODULO = "commercial"
 
@@ -94,32 +96,37 @@ class AddProposalAttachmentHandler:
             chave=chave, conteudo=cmd.conteudo, content_type=cmd.content_type
         )
 
-        anexo = await self._anexos.adicionar(
-            proposal_id=cmd.proposal_id,
-            file_name=cmd.file_name.strip()[:255],
-            content_type=cmd.content_type,
-            size_bytes=len(cmd.conteudo),
-            storage_key=chave,
-            sha256=digest,
-            ator=cmd.ator,
-        )
+        try:
+            anexo = await self._anexos.adicionar(
+                proposal_id=cmd.proposal_id,
+                file_name=cmd.file_name.strip()[:255],
+                content_type=cmd.content_type,
+                size_bytes=len(cmd.conteudo),
+                storage_key=chave,
+                sha256=digest,
+                ator=cmd.ator,
+            )
 
-        self._audit.registrar(
-            module=MODULO,
-            action="proposal.attachment_added",
-            actor_user_id=cmd.ator,
-            aggregate_type="proposal",
-            aggregate_id=str(cmd.proposal_id),
-            correlation_id=cmd.correlation_id,
-            payload={
-                "attachment_id": anexo.id,
-                "file_name": anexo.file_name,
-                "content_type": anexo.content_type,
-                "size_bytes": anexo.size_bytes,
-                "sha256": digest,
-            },
-        )
-        await self._uow.commit()
+            self._audit.registrar(
+                module=MODULO,
+                action="proposal.attachment_added",
+                actor_user_id=cmd.ator,
+                aggregate_type="proposal",
+                aggregate_id=str(cmd.proposal_id),
+                correlation_id=cmd.correlation_id,
+                payload={
+                    "attachment_id": anexo.id,
+                    "file_name": anexo.file_name,
+                    "content_type": anexo.content_type,
+                    "size_bytes": anexo.size_bytes,
+                    "sha256": digest,
+                },
+            )
+            await self._uow.commit()
+        except Exception:
+            with suppress(Exception):
+                await self._storage.remover(chave)
+            raise
 
         return ComprovanteAnexado(
             id=anexo.id,
@@ -141,4 +148,8 @@ class AddProposalAttachmentHandler:
         if len(cmd.conteudo) > TAMANHO_MAXIMO:
             raise ComprovanteInvalidoError(
                 f"O arquivo passa de {TAMANHO_MAXIMO // (1024 * 1024)} MB."
+            )
+        if not matches_declared_content_type(cmd.content_type, cmd.conteudo):
+            raise ComprovanteInvalidoError(
+                "O conteúdo do arquivo não corresponde ao tipo PDF, JPG ou PNG informado."
             )

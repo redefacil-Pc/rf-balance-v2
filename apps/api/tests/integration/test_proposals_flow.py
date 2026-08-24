@@ -13,8 +13,11 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient, Response
+from sqlalchemy import text
 
 from app.platform.config.security import CSRF_COOKIE, CSRF_HEADER
+from app.platform.config.settings import get_settings
+from app.platform.db.engine import criar_engine
 
 pytestmark = pytest.mark.integration
 
@@ -112,6 +115,46 @@ async def _criar_proposta(
     assert resposta.status_code == 201, resposta.text
     resultado: dict[str, Any] = resposta.json()
     return resultado
+
+
+async def _registrar_recebimento_de_teste(proposal_id: int, *, amount: str = "100.00") -> None:
+    """Prepara o estado comercial; o contrato HTTP do recebimento é coberto em seu módulo."""
+    engine = criar_engine(get_settings().database)
+    try:
+        async with engine.begin() as conexao:
+            await conexao.execute(
+                text(
+                    "INSERT INTO receiving_accounts "
+                    "(label, display_order, is_active, created_by, updated_by) "
+                    "VALUES (:label, 0, 1, NULL, NULL)"
+                ),
+                {"label": f"Conta da proposta {proposal_id}"},
+            )
+            conta = await conexao.scalar(text("SELECT LAST_INSERT_ID()"))
+            ator = await conexao.scalar(text("SELECT id FROM users ORDER BY id LIMIT 1"))
+            await conexao.execute(
+                text(
+                    "INSERT INTO receipts ("
+                    "proposal_id, amount, business_date, payment_method, receiving_account_id, "
+                    "status, proof_file_name, proof_content_type, proof_size_bytes, "
+                    "proof_storage_key, proof_sha256, idempotency_key, request_hash, created_by"
+                    ") VALUES ("
+                    ":proposal_id, :amount, '2026-08-12', 'PIX', :conta, 'SUBMITTED', "
+                    "'comprovante.pdf', 'application/pdf', 8, :storage_key, :hash, :chave, "
+                    ":hash, :ator)"
+                ),
+                {
+                    "proposal_id": proposal_id,
+                    "amount": amount,
+                    "conta": conta,
+                    "storage_key": f"testes/propostas/{proposal_id}.pdf",
+                    "hash": "a" * 64,
+                    "chave": f"teste-proposta-{proposal_id}",
+                    "ator": ator,
+                },
+            )
+    finally:
+        await engine.dispose()
 
 
 # ---------- cadastro ----------
@@ -215,6 +258,8 @@ async def test_detalhe_traz_documento_mascarado_e_nome_do_consultor(
     assert corpo["customer_document"] == "111.444.777-35"
     assert corpo["overpaid"] is False
     assert corpo["tolerance_policy_version"] == "v1"
+    assert [evento["action"] for evento in corpo["timeline"]] == ["proposal.created"]
+    assert corpo["timeline"][0]["actor_name"] == "Administrador"
 
 
 async def test_listagem_filtra_por_consultor_e_periodo(api: Api, consultor: int) -> None:
@@ -348,37 +393,48 @@ async def test_cadastro_e_alteracao_geram_trilha_de_auditoria(api: Api, consulto
 # ---------- aprovação ----------
 
 
-async def test_envio_exige_comprovante(api: Api, consultor: int) -> None:
+async def test_anexo_solto_nao_substitui_recebimento_declarado(api: Api, consultor: int) -> None:
     criada = await _criar_proposta(api, consultor)
+    anexo = await api.upload(
+        f"/api/v1/proposals/{criada['id']}/attachments",
+        file_name="comprovante-solto.pdf",
+        content_type="application/pdf",
+        conteudo=b"%PDF-1.4 sem valor associado",
+    )
+    assert anexo.status_code == 201, anexo.text
 
-    sem_anexo = await api.post(
+    sem_recebimento = await api.post(
         f"/api/v1/proposals/{criada['id']}/submission", {"version": criada["version"]}
     )
 
-    assert sem_anexo.status_code == 422
-    assert sem_anexo.json()["type"].endswith("proposta-sem-comprovante")
+    assert sem_recebimento.status_code == 422
+    assert sem_recebimento.json()["type"].endswith("proposta-sem-comprovante")
+    assert "valor recebido" in sem_recebimento.json()["detail"]
 
 
 async def test_fluxo_completo_de_aprovacao(api: Api, consultor: int) -> None:
     criada = await _criar_proposta(api, consultor)
-
-    anexo = await api.upload(
-        f"/api/v1/proposals/{criada['id']}/attachments",
-        file_name="comprovante.pdf",
-        content_type="application/pdf",
-        conteudo=b"%PDF-1.4 conteudo de teste",
-    )
-    assert anexo.status_code == 201, anexo.text
-
-    listados = await api.get(f"/api/v1/proposals/{criada['id']}/attachments")
-    assert listados.status_code == 200
-    assert len(listados.json()) == 1
+    await _registrar_recebimento_de_teste(criada["id"])
 
     enviada = await api.post(
         f"/api/v1/proposals/{criada['id']}/submission", {"version": criada["version"]}
     )
     assert enviada.status_code == 200, enviada.text
     assert enviada.json()["approval_status"] == "SUBMITTED"
+
+    listagem_operacional = await api.get(
+        "/api/v1/proposals", exclude_approval_status="SUBMITTED"
+    )
+    fila_do_financeiro = await api.get(
+        "/api/v1/proposals", approval_status="SUBMITTED"
+    )
+    assert criada["id"] not in {
+        item["id"] for item in listagem_operacional.json()["items"]
+    }
+    assert criada["id"] in {item["id"] for item in fila_do_financeiro.json()["items"]}
+    pendentes = await api.get("/api/v1/proposals/pending-count")
+    assert pendentes.status_code == 200
+    assert pendentes.json() == {"count": 1}
 
     # travada para edição enquanto aguarda decisão
     bloqueada = await api.put(
@@ -398,6 +454,12 @@ async def test_fluxo_completo_de_aprovacao(api: Api, consultor: int) -> None:
     detalhe = (await api.get(f"/api/v1/proposals/{criada['id']}")).json()
     assert detalhe["submitted_at"] is not None
     assert detalhe["decided_at"] is not None
+    assert [evento["action"] for evento in detalhe["timeline"]] == [
+        "proposal.created",
+        "proposal.submitted",
+        "proposal.approved",
+    ]
+    assert (await api.get("/api/v1/proposals/pending-count")).json() == {"count": 0}
 
 
 async def test_operacional_cadastra_e_financeiro_decide(
@@ -446,13 +508,7 @@ async def test_operacional_cadastra_e_financeiro_decide(
             headers=csrf,
         )
         assert criada.status_code == 201, criada.text
-
-        anexo = await cliente_operacional.post(
-            f"/api/v1/proposals/{criada.json()['id']}/attachments",
-            files={"file": ("comprovante.pdf", b"%PDF-1.4 teste", "application/pdf")},
-            headers=csrf,
-        )
-        assert anexo.status_code == 201, anexo.text
+        await _registrar_recebimento_de_teste(criada.json()["id"])
 
         enviada = await cliente_operacional.post(
             f"/api/v1/proposals/{criada.json()['id']}/submission",
@@ -501,12 +557,7 @@ async def test_operacional_cadastra_e_financeiro_decide(
 
 async def test_devolucao_exige_motivo_e_permite_reenvio(api: Api, consultor: int) -> None:
     criada = await _criar_proposta(api, consultor)
-    await api.upload(
-        f"/api/v1/proposals/{criada['id']}/attachments",
-        file_name="comprovante.pdf",
-        content_type="application/pdf",
-        conteudo=b"%PDF-1.4 conteudo de teste",
-    )
+    await _registrar_recebimento_de_teste(criada["id"])
     enviada = (
         await api.post(
             f"/api/v1/proposals/{criada['id']}/submission", {"version": criada["version"]}

@@ -45,7 +45,7 @@ Total: ~29 semanas. A ordem é a da seção 23 do blueprint e **não deve ser re
 | F3 | concluída no código | recebimentos idempotentes, concorrência, estornos parciais, reconciliação, auditoria e outbox atômicas |
 | F4 | concluída no código | rule sets e configurações versionados, consultor padrão e escalonado, estratégias de grupo, política individual, ledger append-only e memória de cálculo |
 | F5 | concluída no código | períodos com cutoff, fechamento, geração de settlements, BKO manual, adiamento/carryover, pagamento e reabertura auditada |
-| F6 | **parcial** | dashboard, relatório financeiro geral e individual com export PDF/XLSX entregues; faltam relatório por equipe e por unidade, geração de documentos em lote (`document_jobs`, `stored_documents`, ZIP) e o orçamento de p95 no CI |
+| F6 | **parcial** | dashboard, relatórios geral/individual/equipe/unidade, export PDF/XLSX e lotes assíncronos de PDFs/ZIP entregues; faltam seed volumétrico e orçamento de p95 no CI |
 | F7 | não iniciada | apenas o importador legado em dry-run, herdado da F2 |
 
 O setor piloto em produção-staging é o gate operacional antes da implantação.
@@ -415,9 +415,9 @@ Decisões de F1 são urgentes: mudam código de plataforma.
 
 Com F1–F5 no código e a F6 parcial, o caminho crítico é este:
 
-1. **Fechar a F6**: relatório por equipe e por unidade, geração de documentos em lote (`document_jobs`, `stored_documents`, ZIP) e o orçamento de p95 medido no CI, que ainda não existe como teste.
+1. **Fechar a F6**: criar o seed volumétrico e medir no CI o orçamento de p95, que ainda não existe como teste. Os recortes por equipe/unidade e os lotes de PDFs/ZIP foram entregues em 20/08/2026.
 2. **Homologar o comissionamento** com o Financeiro, pelo roteiro em [`docs/11-ROTEIRO-HOMOLOGACAO-COMISSOES.md`](docs/11-ROTEIRO-HOMOLOGACAO-COMISSOES.md). Enquanto os casos dourados do v1 não forem comparados, a F4 está concluída no código mas não validada contra a realidade.
-3. **Decidir o que ainda trava fase** (seção 6): dupla aprovação para reabertura de período, estorno retroativo e a decisão sobre líder receber sobre venda própria.
-4. **F7**: shadow mode sobre dados reais, que depende dos itens 2 e 3.
+3. **Decisões que travavam fase: concluídas em 21/08/2026** no ADR 0016: dupla aprovação para reabertura, estorno como desconto futuro, líder sem venda e sobrepagamento aprovável sem limite.
+4. **F7**: shadow mode sobre dados reais, que agora depende da homologação do item 2.
 
 Para a Trilha P eu continuo precisando de acesso (ou de um dump anonimizado) ao banco e ao código do v1, para diagnosticar as queries lentas de verdade em vez de trabalhar por hipótese. O seed volumétrico previsto na P2 ainda não existe.

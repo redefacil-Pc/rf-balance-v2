@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
+from app.modules.audit.application.queries.list_audit_events import ListAuditEventsQuery
 from app.modules.audit.infrastructure.repositories.sql_audit_recorder import SqlAuditRecorder
 from app.modules.commercial.application.commands.add_proposal_attachment import (
     AddProposalAttachmentHandler,
@@ -84,6 +85,7 @@ def _attachment_storage(request: Request) -> ObjectAttachmentStorage:
     return ObjectAttachmentStorage(
         request.app.state.storage,
         request.app.state.settings.storage.object_storage_bucket,
+        request.app.state.settings.storage.object_storage_prefix,
     )
 
 
@@ -131,6 +133,7 @@ def get_get_proposal_handler(request: Request, uow: Uow) -> GetProposalHandler:
         propostas=SqlProposalRepository(uow.session, request.app.state.pii_cipher),
         colaboradores=SqlCollaboratorRepository(uow.session),
         cipher=request.app.state.pii_cipher,
+        audit=ListAuditEventsQuery(uow.session),
     )
 
 
@@ -138,7 +141,6 @@ def get_submit_proposal_handler(request: Request, uow: Uow) -> SubmitProposalHan
     return SubmitProposalHandler(
         uow=uow,
         propostas=SqlProposalRepository(uow.session, request.app.state.pii_cipher),
-        anexos=SqlProposalAttachmentRepository(uow.session),
         recebimentos=SqlReceiptRecognizer(uow.session, request.app.state.clock.now()),
         audit=SqlAuditRecorder(uow.session, request.app.state.clock),
         clock=request.app.state.clock,

@@ -2,8 +2,12 @@ import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  obterDataHoraEmSaoPaulo,
+} from '@/features/proposals/components/PagamentoNoCadastro';
 import { ProposalFormModal } from '@/features/proposals/components/ProposalFormModal';
 
 const COLABORADORES = {
@@ -34,7 +38,33 @@ function montar() {
   render(
     <MantineProvider>
       <QueryClientProvider client={client}>
-        <ProposalFormModal aberto onFechar={() => undefined} />
+        <ProposalFormModal aberto podeDeclararPagamento onFechar={() => undefined} />
+      </QueryClientProvider>
+    </MantineProvider>,
+  );
+  return userEvent.setup();
+}
+
+function CenarioReabertura() {
+  const [aberto, setAberto] = useState(true);
+  return (
+    <>
+      {!aberto && <button onClick={() => setAberto(true)}>Reabrir cadastro</button>}
+      <ProposalFormModal
+        aberto={aberto}
+        podeDeclararPagamento
+        onFechar={() => setAberto(false)}
+      />
+    </>
+  );
+}
+
+function montarCenarioReabertura() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <MantineProvider>
+      <QueryClientProvider client={client}>
+        <CenarioReabertura />
       </QueryClientProvider>
     </MantineProvider>,
   );
@@ -69,9 +99,21 @@ describe('Pagamento no cadastro da proposta', () => {
           }),
         );
       }
-      if (caminho.includes('/receipts') && init?.method === 'POST') {
+      if (caminho.includes('/proposals/with-receipt') && init?.method === 'POST') {
         aoCriarRecebimento?.(init.body as FormData);
-        return Promise.resolve(json({ id: 5 }, 201));
+        return Promise.resolve(
+          json(
+            {
+              id: 3,
+              receipt_id: 5,
+              version: 1,
+              status: 'OPEN',
+              company_commission_amount: '1000.00',
+              outstanding_amount: '1000.00',
+            },
+            201,
+          ),
+        );
       }
       if (caminho.includes('/proposals') && init?.method === 'POST') {
         return Promise.resolve(json({ id: 3, version: 1, company_commission_amount: '1000.00' }, 201));
@@ -115,7 +157,7 @@ describe('Pagamento no cadastro da proposta', () => {
     ).toBeInTheDocument();
   });
 
-  it('declara o recebimento junto do cadastro quando o bloco está completo', async () => {
+  it('cadastra proposta e recebimento na mesma requisição quando o bloco está completo', async () => {
     let corpo: FormData | undefined;
     mockarApi((body) => {
       corpo = body;
@@ -137,8 +179,48 @@ describe('Pagamento no cadastro da proposta', () => {
     await user.click(screen.getByRole('button', { name: 'Cadastrar' }));
 
     await waitFor(() => expect(corpo?.get('amount')).toBe('1000.00'));
+    expect(corpo?.get('customer_name')).toBe('Cliente Exemplo');
+    expect(corpo?.get('operation_amount')).toBe('10000.00');
     expect(corpo?.get('receiving_account_id')).toBe('7');
     expect(corpo?.get('payment_method')).toBe('PIX');
     expect(corpo?.get('proof')).toBeInstanceOf(File);
+    expect(
+      vi.mocked(globalThis.fetch).mock.calls.filter(
+        ([url, init]) => String(url).includes('/proposals') && init?.method === 'POST',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('descarta proposta, pagamento e comprovante ao cancelar e reabrir', async () => {
+    mockarApi();
+    const user = montarCenarioReabertura();
+
+    await user.type(await screen.findByLabelText(/^cliente/i), 'Cliente que foi cancelado');
+    await user.type(screen.getByLabelText(/^valor pago/i), '100000');
+    await user.click(screen.getByRole('textbox', { name: /conta que recebeu/i }));
+    await user.click(await screen.findByRole('option', { name: /almeida serviços/i }));
+    const arquivo = new File([new Uint8Array([1, 2, 3])], 'comprovante-antigo.pdf', {
+      type: 'application/pdf',
+    });
+    await user.upload(
+      document.querySelector<HTMLInputElement>('input[type="file"]') as HTMLInputElement,
+      arquivo,
+    );
+    expect(screen.getByRole('button', { name: 'comprovante-antigo.pdf' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await user.click(await screen.findByRole('button', { name: 'Reabrir cadastro' }));
+
+    expect(await screen.findByLabelText(/^cliente/i)).toHaveValue('');
+    expect(screen.getByLabelText(/^valor pago/i)).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Selecionar PDF, JPG ou PNG' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /conta que recebeu/i })).toHaveValue('');
+  });
+
+  it('calcula a data e a hora no fuso de São Paulo', () => {
+    expect(obterDataHoraEmSaoPaulo(new Date('2026-08-21T02:30:00.000Z'))).toEqual({
+      data: '2026-08-20',
+      hora: '23:30',
+    });
   });
 });

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -45,11 +45,6 @@ from app.platform.db.session.unit_of_work import UnitOfWork
 from app.platform.security import pii_cipher as pii
 from app.platform.time.clock import SystemClock
 
-PREVIOUS_START = date(2026, 7, 31)
-PREVIOUS_END = date(2026, 8, 6)
-CURRENT_START = date(2026, 8, 14)
-CURRENT_END = date(2026, 8, 20)
-
 
 class SettlementDemo:
     def __init__(self) -> None:
@@ -58,6 +53,10 @@ class SettlementDemo:
         self.factory = criar_fabrica_de_sessoes(self.engine)
         self.clock = SystemClock(self.settings.app.app_timezone)
         self.cipher = pii.criar(self.settings.pii.chave, self.settings.pii.pepper)
+        self.current_end = self.clock.business_date()
+        self.current_start = self.current_end - timedelta(days=6)
+        self.previous_start = self.current_start - timedelta(days=14)
+        self.previous_end = self.current_end - timedelta(days=14)
 
     async def close(self) -> None:
         await self.engine.dispose()
@@ -174,7 +173,7 @@ class SettlementDemo:
         entries = (
             (
                 Decimal("200.00"),
-                PREVIOUS_END,
+                self.previous_end,
                 "BKO anterior para demonstrar carryover",
                 "seed-settlement-bko-previous-20260806",
             ),
@@ -328,8 +327,8 @@ class SettlementDemo:
         cases = (
             (
                 bko,
-                PREVIOUS_START,
-                PREVIOUS_END,
+                self.previous_start,
+                self.previous_end,
                 "200.00",
                 "0.00",
                 "0.00",
@@ -341,8 +340,8 @@ class SettlementDemo:
             ),
             (
                 bko,
-                CURRENT_START,
-                CURRENT_END,
+                self.current_start,
+                self.current_end,
                 "300.00",
                 "80.00",
                 "50.00",
@@ -354,8 +353,8 @@ class SettlementDemo:
             ),
             (
                 scaled,
-                CURRENT_START,
-                CURRENT_END,
+                self.current_start,
+                self.current_end,
                 "2800.00",
                 "0.00",
                 "0.00",
@@ -367,8 +366,8 @@ class SettlementDemo:
             ),
             (
                 finalizer,
-                CURRENT_START,
-                CURRENT_END,
+                self.current_start,
+                self.current_end,
                 "0.00",
                 "0.00",
                 "300.00",
@@ -424,9 +423,9 @@ async def execute() -> int:
         actor, bko, scaled, finalizer = await demo.prerequisites()
         await demo.ensure_entries(actor, bko, finalizer)
 
-        if not await demo.period_is_closed(PREVIOUS_START, PREVIOUS_END):
-            await demo.generate(actor, PREVIOUS_START, PREVIOUS_END)
-            previous = await demo.settlement(bko, PREVIOUS_START, PREVIOUS_END)
+        if not await demo.period_is_closed(demo.previous_start, demo.previous_end):
+            await demo.generate(actor, demo.previous_start, demo.previous_end)
+            previous = await demo.settlement(bko, demo.previous_start, demo.previous_end)
             await demo.adjust(
                 actor,
                 previous.id,
@@ -434,11 +433,13 @@ async def execute() -> int:
                 notes="R$ 80,00 adiados para demonstrar carryover",
             )
             await demo.pay_until(actor, previous.id, Decimal("120.00"), "DEMO-BKO-ANTERIOR")
-            await demo.ensure_period(actor, PREVIOUS_START, PREVIOUS_END, close=True)
+            await demo.ensure_period(
+                actor, demo.previous_start, demo.previous_end, close=True
+            )
 
-        await demo.ensure_period(actor, CURRENT_START, CURRENT_END, close=False)
-        await demo.generate(actor, CURRENT_START, CURRENT_END)
-        current = await demo.settlement(bko, CURRENT_START, CURRENT_END)
+        await demo.ensure_period(actor, demo.current_start, demo.current_end, close=False)
+        await demo.generate(actor, demo.current_start, demo.current_end)
+        current = await demo.settlement(bko, demo.current_start, demo.current_end)
         await demo.adjust(
             actor,
             current.id,
@@ -449,11 +450,14 @@ async def execute() -> int:
         )
         await demo.pay_until(actor, current.id, Decimal("200.00"), "DEMO-BKO-PARCIAL")
 
-        scaled_current = await demo.settlement(scaled, CURRENT_START, CURRENT_END)
+        scaled_current = await demo.settlement(scaled, demo.current_start, demo.current_end)
         await demo.pay_until(actor, scaled_current.id, Decimal("2800.00"), "DEMO-ESCALONADO")
 
         await demo.validate_and_print(bko, scaled, finalizer)
-        print("\nValidação concluída. Abra Fechamentos no período 14/08 a 20/08.")
+        print(
+            "\nValidação concluída. Abra Fechamentos no período "
+            f"{demo.current_start:%d/%m} a {demo.current_end:%d/%m}."
+        )
         return 0
     finally:
         await demo.close()

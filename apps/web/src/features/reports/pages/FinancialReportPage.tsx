@@ -1,10 +1,20 @@
-import { Alert, Badge, Button, Card, Group, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import {
+  Alert, Badge, Button, Card, Group, SegmentedControl, Select, SimpleGrid, Stack,
+  Table, Text, TextInput, Title,
+} from '@mantine/core';
 import { IconFileSpreadsheet, IconFileTypePdf } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { FinancialReportDetailModal } from '@/features/reports/components/FinancialReportDetailModal';
-import { useFinancialReport } from '@/features/reports/queries/useFinancialReport';
+import { DocumentJobsCard } from '@/features/reports/components/DocumentJobsCard';
+import {
+  financialReportParams,
+  useFinancialReport,
+  type FinancialReportScope,
+} from '@/features/reports/queries/useFinancialReport';
+import { useUnits } from '@/features/collaborators/queries/useOrganization';
 import type { Period } from '@/features/settlements/queries/useSettlements';
+import { useActiveAssignments } from '@/features/teams/queries/useAssignments';
 import { EstadoDaLista } from '@/shared/components/EstadoDaLista';
 import { formatarMoeda } from '@/shared/formatters/currency';
 import { dataLocalHoje } from '@/shared/formatters/local-date';
@@ -85,8 +95,18 @@ function BeneficiarySector({ title, description, items, onDetail }: {
 
 export function FinancialReportPage() {
   const [period, setPeriod] = useState(currentPeriod);
+  const [scopeType, setScopeType] = useState<'GENERAL' | 'UNIT' | 'TEAM'>('GENERAL');
+  const [unitId, setUnitId] = useState<string | null>(null);
+  const [leaderId, setLeaderId] = useState<string | null>(null);
   const [selected, setSelected] = useState<FinancialReportBeneficiary | null>(null);
-  const query = useFinancialReport(period);
+  const unitsQuery = useUnits(undefined, true);
+  const assignmentsQuery = useActiveAssignments(period.period_end);
+  const scope: FinancialReportScope = scopeType === 'UNIT' && unitId
+    ? { unit_id: Number(unitId) }
+    : scopeType === 'TEAM' && leaderId
+      ? { leader_id: Number(leaderId) }
+      : {};
+  const query = useFinancialReport(period, scope);
   const summary = query.data?.summary;
   const beneficiaries = query.data?.beneficiaries ?? [];
   const sectors = {
@@ -96,10 +116,15 @@ export function FinancialReportPage() {
     LEADERS: beneficiaries.filter((item) => sectorOf(item) === 'LEADERS'),
     OTHER: beneficiaries.filter((item) => sectorOf(item) === 'OTHER'),
   };
-  const exportParams = new URLSearchParams({
-    period_start: period.period_start,
-    period_end: period.period_end,
-  }).toString();
+  const units = Array.isArray(unitsQuery.data) ? unitsQuery.data : [];
+  const assignments = Array.isArray(assignmentsQuery.data) ? assignmentsQuery.data : [];
+  const leaders = Array.from(
+    new Map(assignments.map((item) => [item.leader_id, item.leader_name])).entries(),
+  ).sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+  const exportParams = financialReportParams(period, scope);
+  const scopeReady = scopeType === 'GENERAL'
+    || (scopeType === 'UNIT' && Boolean(unitId))
+    || (scopeType === 'TEAM' && Boolean(leaderId));
   return <Stack gap="lg">
     <Group justify="space-between" align="flex-end"><div><Title order={2} size="h3">Relatório financeiro de comissões</Title>
       <Text size="sm" c="dimmed">Recebimentos, produção, comissões e resultado líquido no mesmo período.</Text></div>
@@ -108,11 +133,34 @@ export function FinancialReportPage() {
         <Button component="a" variant="default" leftSection={<IconFileSpreadsheet size={16} />}
           href={`/api/v1/commission-financial-report/export.xlsx?${exportParams}`} download>Exportar XLSX</Button></Group>
     </Group>
-    <Card withBorder><Group align="end"><TextInput type="date" label="Início" value={period.period_start}
-      onChange={(event) => setPeriod({ ...period, period_start: event.currentTarget.value })} />
-      <TextInput type="date" label="Fim" value={period.period_end}
-        onChange={(event) => setPeriod({ ...period, period_end: event.currentTarget.value })} />
-    </Group></Card>
+    <Card withBorder><Stack gap="md">
+      <Group align="end"><TextInput type="date" label="Início" value={period.period_start}
+        onChange={(event) => setPeriod({ ...period, period_start: event.currentTarget.value })} />
+        <TextInput type="date" label="Fim" value={period.period_end}
+          onChange={(event) => setPeriod({ ...period, period_end: event.currentTarget.value })} />
+      </Group>
+      <div><Text size="sm" fw={600} mb={6}>Visualização</Text>
+        <SegmentedControl value={scopeType} onChange={(value) => {
+          setScopeType(value as 'GENERAL' | 'UNIT' | 'TEAM');
+          setSelected(null);
+        }} data={[
+          { label: 'Geral', value: 'GENERAL' },
+          { label: 'Por unidade', value: 'UNIT' },
+          { label: 'Por equipe', value: 'TEAM' },
+        ]} />
+      </div>
+      {scopeType === 'UNIT' && <Select searchable clearable label="Unidade"
+        placeholder="Selecione a unidade" value={unitId} onChange={(value) => {
+          setUnitId(value); setSelected(null);
+        }} data={units.map((unit) => ({ value: String(unit.id), label: `${unit.code} · ${unit.name}` }))}
+        nothingFoundMessage="Nenhuma unidade encontrada" />}
+      {scopeType === 'TEAM' && <Select searchable clearable label="Líder da equipe"
+        description="Equipe vigente na data final do período" placeholder="Selecione o líder"
+        value={leaderId} onChange={(value) => { setLeaderId(value); setSelected(null); }}
+        data={leaders.map(([id, name]) => ({ value: String(id), label: name }))}
+        nothingFoundMessage="Nenhuma equipe encontrada" />}
+    </Stack></Card>
+    <DocumentJobsCard period={period} scope={scope} scopeReady={scopeReady} />
     {summary && <>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
         <Indicator label="Faturamento reconhecido" value={summary.recognized_revenue}
@@ -163,6 +211,7 @@ export function FinancialReportPage() {
           items={sectors.OTHER} onDetail={setSelected} />}
       </Stack>
     </EstadoDaLista>
-    <FinancialReportDetailModal beneficiary={selected} period={period} onClose={() => setSelected(null)} />
+    <FinancialReportDetailModal beneficiary={selected} period={period} scope={scope}
+      onClose={() => setSelected(null)} />
   </Stack>;
 }
