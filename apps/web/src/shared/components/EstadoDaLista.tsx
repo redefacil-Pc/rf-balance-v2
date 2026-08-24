@@ -1,8 +1,9 @@
-import { Alert, Button, Center, Loader, Stack, Text } from '@mantine/core';
+import { Alert, Button, Center, Stack, Text } from '@mantine/core';
 import { IconAlertTriangle, IconInbox } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
 import { ApiError } from '@/shared/api/problem-details';
+import { ContentLoading } from '@/shared/components/ContentLoading';
 
 interface Props {
   carregando: boolean;
@@ -26,11 +27,7 @@ export function EstadoDaLista({
   children,
 }: Props) {
   if (carregando) {
-    return (
-      <Center mih={220}>
-        <Loader aria-label="Carregando registros" />
-      </Center>
-    );
+    return <ContentLoading label="Carregando registros" />;
   }
 
   if (erro) {

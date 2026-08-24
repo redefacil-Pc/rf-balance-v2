@@ -20,6 +20,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { navegacao } from '@/app/layouts/navegacao';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { preloadRoute } from '@/app/router/route-modules';
 import { usePendingProposalCount } from '@/features/proposals/queries/usePendingProposalCount';
 import { ColorSchemeToggle } from '@/shared/components/ColorSchemeToggle';
 import { MenuDoUsuario } from '@/shared/components/MenuDoUsuario';
@@ -86,6 +87,8 @@ export function AppLayout() {
               className="rf-brand-link"
               aria-label="Ir para o dashboard"
               onClick={close}
+              onFocus={() => preloadRoute('/')}
+              onPointerEnter={() => preloadRoute('/')}
             >
               <Group gap="sm" wrap="nowrap">
                 <Box className="rf-brand-mark" aria-hidden="true">RF</Box>
@@ -160,6 +163,8 @@ export function AppLayout() {
                               : undefined
                           }
                           active={pathname === item.caminho}
+                          onFocus={() => preloadRoute(item.caminho)}
+                          onPointerEnter={() => preloadRoute(item.caminho)}
                           onClick={() => {
                             navigate(item.caminho);
                             close();
