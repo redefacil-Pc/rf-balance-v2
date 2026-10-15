@@ -143,7 +143,7 @@ jobs:
       - name: gerar openapi.json
         run: |
           python -c "import json;from app.main import criar_app;print(json.dumps(criar_app().openapi(),indent=2))" > openapi.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: openapi
           path: apps/api/openapi.json
@@ -190,7 +190,7 @@ jobs:
         run: npm run test:e2e
       - name: publicar diagnóstico em caso de falha
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: |
