@@ -13,7 +13,7 @@ dependencies = [
     "alembic>=1.14,<1.15",
     "asyncmy>=0.2.9,<0.3",
     # exigido pelo caching_sha2_password, autenticação padrão do MySQL 8.4
-    "cryptography>=43,<45",
+    "cryptography>=43,<51",
     "redis>=5.2,<6",
     "argon2-cffi>=23.1,<24",
     "structlog>=24.4,<25",
